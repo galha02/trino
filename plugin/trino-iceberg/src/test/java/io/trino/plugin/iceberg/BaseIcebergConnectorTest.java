@@ -1438,11 +1438,25 @@ public abstract class BaseIcebergConnectorTest
         // date_trunc
         assertThat(query("SELECT * FROM test_hour_transform_timestamp WHERE date_trunc('hour', d) = TIMESTAMP '2015-05-15 12:00:00'"))
                 .isFullyPushedDown();
+        assertThat(query("SELECT * FROM test_hour_transform_timestamp WHERE date_trunc('hour', d) BETWEEN TIMESTAMP '2015-05-15 12:00:00' AND TIMESTAMP '2015-05-15 13:59:59.999999'"))
+                .isFullyPushedDown();
+        assertThat(query("SELECT * FROM test_hour_transform_timestamp WHERE date_trunc('hour', d) BETWEEN DATE '2015-05-15' AND DATE '2015-05-16'"))
+                .isFullyPushedDown();
+        assertThat(query("SELECT * FROM test_hour_transform_timestamp WHERE date_trunc('hour', d) BETWEEN TIMESTAMP '2015-05-15 12:00:00.000001' AND TIMESTAMP '2015-05-15 13:59:59.999999'"))
+                .isFullyPushedDown();
         assertThat(query("SELECT * FROM test_hour_transform_timestamp WHERE date_trunc('day', d) = DATE '2015-05-15'"))
+                .isFullyPushedDown();
+        assertThat(query("SELECT * FROM test_hour_transform_timestamp WHERE date_trunc('day', d) BETWEEN DATE '2015-05-15' AND DATE '2015-05-16'"))
+                .isFullyPushedDown();
+        assertThat(query("SELECT * FROM test_hour_transform_timestamp WHERE date_trunc('day', d) BETWEEN TIMESTAMP '2015-05-15 00:00:00' AND TIMESTAMP '2015-05-16 00:00:00'"))
                 .isFullyPushedDown();
         assertThat(query("SELECT * FROM test_hour_transform_timestamp WHERE date_trunc('month', d) = DATE '2015-05-01'"))
                 .isFullyPushedDown();
+        assertThat(query("SELECT * FROM test_hour_transform_timestamp WHERE date_trunc('month', d) BETWEEN DATE '2015-05-01' AND DATE '2015-06-01'"))
+                .isFullyPushedDown();
         assertThat(query("SELECT * FROM test_hour_transform_timestamp WHERE date_trunc('year', d) = DATE '2015-01-01'"))
+                .isFullyPushedDown();
+        assertThat(query("SELECT * FROM test_hour_transform_timestamp WHERE date_trunc('year', d) BETWEEN DATE '2015-01-01' AND DATE '2016-01-01'"))
                 .isFullyPushedDown();
 
         assertUpdate("DROP TABLE test_hour_transform_timestamp");
@@ -1544,11 +1558,23 @@ public abstract class BaseIcebergConnectorTest
         // date_trunc
         assertThat(query("SELECT * FROM test_hour_transform_timestamptz WHERE date_trunc('hour', d) = TIMESTAMP '2015-05-15 12:00:00.000000 UTC'"))
                 .isFullyPushedDown();
+        assertThat(query("SELECT * FROM test_hour_transform_timestamptz WHERE date_trunc('hour', d) BETWEEN TIMESTAMP '2015-05-15 12:00:00.000000 UTC' AND TIMESTAMP '2015-05-15 13:59:59.999999 UTC'"))
+                .isFullyPushedDown();
         assertThat(query("SELECT * FROM test_hour_transform_timestamptz WHERE date_trunc('day', d) = TIMESTAMP '2015-05-15 00:00:00.000000 UTC'"))
+                .isFullyPushedDown();
+        assertThat(query("SELECT * FROM test_hour_transform_timestamptz WHERE date_trunc('day', d) BETWEEN TIMESTAMP '2015-05-15 00:00:00' AND TIMESTAMP '2015-05-16 00:00:00'"))
+                .isFullyPushedDown();
+        assertThat(query("SELECT * FROM test_hour_transform_timestamptz WHERE date_trunc('day', d) BETWEEN DATE '2015-05-15' AND DATE '2015-05-16'"))
                 .isFullyPushedDown();
         assertThat(query("SELECT * FROM test_hour_transform_timestamptz WHERE date_trunc('month', d) = TIMESTAMP '2015-05-01 00:00:00.000000 UTC'"))
                 .isFullyPushedDown();
+        assertThat(query("SELECT * FROM test_hour_transform_timestamptz WHERE date_trunc('month', d) BETWEEN DATE '2015-05-01' AND DATE '2015-06-08'"))
+                .isFullyPushedDown();
         assertThat(query("SELECT * FROM test_hour_transform_timestamptz WHERE date_trunc('year', d) = TIMESTAMP '2015-01-01 00:00:00.000000 UTC'"))
+                .isFullyPushedDown();
+        assertThat(query("SELECT * FROM test_hour_transform_timestamptz WHERE date_trunc('year', d) BETWEEN TIMESTAMP '2015-01-01 00:00:00.000000 UTC' AND TIMESTAMP '2016-01-01 00:00:00.000000 UTC'"))
+                .isFullyPushedDown();
+        assertThat(query("SELECT * FROM test_hour_transform_timestamptz WHERE date_trunc('year', d) BETWEEN DATE '2015-01-01' AND DATE '2016-01-01'"))
                 .isFullyPushedDown();
 
         assertUpdate("DROP TABLE test_hour_transform_timestamptz");
@@ -1685,9 +1711,15 @@ public abstract class BaseIcebergConnectorTest
         // date_trunc
         assertThat(query("SELECT * FROM test_day_transform_date WHERE date_trunc('day', d) = DATE '2015-01-13'"))
                 .isFullyPushedDown();
+        assertThat(query("SELECT * FROM test_day_transform_date WHERE date_trunc('day', d) BETWEEN DATE '2015-01-13' AND DATE '2015-01-14'"))
+                .isFullyPushedDown();
         assertThat(query("SELECT * FROM test_day_transform_date WHERE date_trunc('month', d) = DATE '2015-01-01'"))
                 .isFullyPushedDown();
+        assertThat(query("SELECT * FROM test_day_transform_date WHERE date_trunc('month', d) BETWEEN DATE '2015-01-01' AND DATE '2015-02-01'"))
+                .isFullyPushedDown();
         assertThat(query("SELECT * FROM test_day_transform_date WHERE date_trunc('year', d) = DATE '2015-01-01'"))
+                .isFullyPushedDown();
+        assertThat(query("SELECT * FROM test_day_transform_date WHERE date_trunc('year', d) BETWEEN DATE '2015-01-01' AND DATE '2016-01-01'"))
                 .isFullyPushedDown();
 
         dropTable("test_day_transform_date");
@@ -1797,9 +1829,15 @@ public abstract class BaseIcebergConnectorTest
         // date_trunc
         assertThat(query("SELECT * FROM test_day_transform_timestamp WHERE date_trunc('day', d) = DATE '2015-05-15'"))
                 .isFullyPushedDown();
+        assertThat(query("SELECT * FROM test_day_transform_timestamp WHERE date_trunc('day', d) BETWEEN DATE '2015-05-15' AND DATE '2015-05-16'"))
+                .isFullyPushedDown();
         assertThat(query("SELECT * FROM test_day_transform_timestamp WHERE date_trunc('month', d) = DATE '2015-05-01'"))
                 .isFullyPushedDown();
+        assertThat(query("SELECT * FROM test_day_transform_timestamp WHERE date_trunc('month', d) BETWEEN DATE '2015-05-01' AND DATE '2015-06-01'"))
+                .isFullyPushedDown();
         assertThat(query("SELECT * FROM test_day_transform_timestamp WHERE date_trunc('year', d) = DATE '2015-01-01'"))
+                .isFullyPushedDown();
+        assertThat(query("SELECT * FROM test_day_transform_timestamp WHERE date_trunc('year', d) BETWEEN DATE '2015-01-01' AND DATE '2016-01-01'"))
                 .isFullyPushedDown();
 
         dropTable("test_day_transform_timestamp");
@@ -1911,9 +1949,15 @@ public abstract class BaseIcebergConnectorTest
         // date_trunc
         assertThat(query("SELECT * FROM test_day_transform_timestamptz WHERE date_trunc('day', d) = TIMESTAMP '2015-05-15 00:00:00.000000 UTC'"))
                 .isFullyPushedDown();
+        assertThat(query("SELECT * FROM test_day_transform_timestamptz WHERE date_trunc('day', d) BETWEEN DATE '2015-05-15' AND DATE '2015-05-16'"))
+                .isFullyPushedDown();
         assertThat(query("SELECT * FROM test_day_transform_timestamptz WHERE date_trunc('month', d) = TIMESTAMP '2015-05-01 00:00:00.000000 UTC'"))
                 .isFullyPushedDown();
+        assertThat(query("SELECT * FROM test_day_transform_timestamptz WHERE date_trunc('month', d) BETWEEN DATE '2015-05-01' AND DATE '2015-06-01'"))
+                .isFullyPushedDown();
         assertThat(query("SELECT * FROM test_day_transform_timestamptz WHERE date_trunc('year', d) = TIMESTAMP '2015-01-01 00:00:00.000000 UTC'"))
+                .isFullyPushedDown();
+        assertThat(query("SELECT * FROM test_day_transform_timestamptz WHERE date_trunc('year', d) BETWEEN DATE '2015-01-01' AND DATE '2016-01-01'"))
                 .isFullyPushedDown();
 
         assertUpdate("DROP TABLE test_day_transform_timestamptz");
@@ -2017,7 +2061,11 @@ public abstract class BaseIcebergConnectorTest
         // date_trunc
         assertThat(query("SELECT * FROM test_month_transform_date WHERE date_trunc('month', d) = DATE '2015-01-01'"))
                 .isFullyPushedDown();
+        assertThat(query("SELECT * FROM test_month_transform_date WHERE date_trunc('month', d) BETWEEN DATE '2015-01-01' AND DATE '2015-02-01'"))
+                .isFullyPushedDown();
         assertThat(query("SELECT * FROM test_month_transform_date WHERE date_trunc('year', d) = DATE '2015-01-01'"))
+                .isFullyPushedDown();
+        assertThat(query("SELECT * FROM test_month_transform_date WHERE date_trunc('year', d) BETWEEN DATE '2015-01-01' AND DATE '2016-01-01'"))
                 .isFullyPushedDown();
 
         if (format != AVRO) {
@@ -2141,7 +2189,11 @@ public abstract class BaseIcebergConnectorTest
         // date_trunc
         assertThat(query("SELECT * FROM test_month_transform_timestamp WHERE date_trunc('month', d) = DATE '2015-05-01'"))
                 .isFullyPushedDown();
+        assertThat(query("SELECT * FROM test_month_transform_timestamp WHERE date_trunc('month', d) BETWEEN DATE '2015-05-01' AND DATE '2015-06-01'"))
+                .isFullyPushedDown();
         assertThat(query("SELECT * FROM test_month_transform_timestamp WHERE date_trunc('year', d) = DATE '2015-01-01'"))
+                .isFullyPushedDown();
+        assertThat(query("SELECT * FROM test_month_transform_timestamp WHERE date_trunc('year', d) BETWEEN DATE '2015-01-01' AND DATE '2016-01-01'"))
                 .isFullyPushedDown();
 
         dropTable("test_month_transform_timestamp");
@@ -2250,7 +2302,11 @@ public abstract class BaseIcebergConnectorTest
         // date_trunc
         assertThat(query("SELECT * FROM test_month_transform_timestamptz WHERE date_trunc('month', d) = TIMESTAMP '2015-05-01 00:00:00.000000 UTC'"))
                 .isFullyPushedDown();
+        assertThat(query("SELECT * FROM test_month_transform_timestamptz WHERE date_trunc('month', d) BETWEEN DATE '2015-05-01' AND DATE '2015-06-01'"))
+                .isFullyPushedDown();
         assertThat(query("SELECT * FROM test_month_transform_timestamptz WHERE date_trunc('year', d) = TIMESTAMP '2015-01-01 00:00:00.000000 UTC'"))
+                .isFullyPushedDown();
+        assertThat(query("SELECT * FROM test_month_transform_timestamptz WHERE date_trunc('year', d) BETWEEN DATE '2015-01-01' AND DATE '2016-01-01'"))
                 .isFullyPushedDown();
 
         assertUpdate("DROP TABLE test_month_transform_timestamptz");
@@ -2351,6 +2407,8 @@ public abstract class BaseIcebergConnectorTest
 
         // date_trunc
         assertThat(query("SELECT * FROM test_year_transform_date WHERE date_trunc('year', d) = DATE '2015-01-01'"))
+                .isFullyPushedDown();
+        assertThat(query("SELECT * FROM test_year_transform_date WHERE date_trunc('year', d) BETWEEN DATE '2015-01-01' AND DATE '2016-01-01'"))
                 .isFullyPushedDown();
 
         if (format != AVRO) {
@@ -2471,6 +2529,8 @@ public abstract class BaseIcebergConnectorTest
         // date_trunc
         assertThat(query("SELECT * FROM test_year_transform_timestamp WHERE date_trunc('year', d) = DATE '2015-01-01'"))
                 .isFullyPushedDown();
+        assertThat(query("SELECT * FROM test_year_transform_timestamp WHERE date_trunc('year', d) BETWEEN DATE '2015-01-01' AND DATE '2016-01-01'"))
+                .isFullyPushedDown();
 
         dropTable("test_year_transform_timestamp");
     }
@@ -2574,6 +2634,8 @@ public abstract class BaseIcebergConnectorTest
 
         // date_trunc
         assertThat(query("SELECT * FROM test_year_transform_timestamptz WHERE date_trunc('year', d) = TIMESTAMP '2015-01-01 00:00:00.000000 UTC'"))
+                .isFullyPushedDown();
+        assertThat(query("SELECT * FROM test_year_transform_timestamptz WHERE date_trunc('year', d) BETWEEN DATE '2015-01-01' AND DATE '2016-01-01'"))
                 .isFullyPushedDown();
 
         assertUpdate("DROP TABLE test_year_transform_timestamptz");
