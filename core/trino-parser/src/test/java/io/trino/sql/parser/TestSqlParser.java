@@ -1881,7 +1881,7 @@ public class TestSqlParser
                 .ignoringLocation()
                 .isEqualTo(new CreateTable(QualifiedName.of("bar"),
                         ImmutableList.of(
-                                new ColumnDefinition(identifier("c"), simpleType(location(1, 35), "VARCHAR"), true, emptyList(), Optional.empty()),
+                                new ColumnDefinition(identifier("c"), simpleType(location(1, 35), "VARCHAR"), true, false, emptyList(), Optional.empty()),
                                 new LikeClause(QualifiedName.of("like_table"),
                                         Optional.empty())),
                         true,
@@ -1892,10 +1892,10 @@ public class TestSqlParser
                 .ignoringLocation()
                 .isEqualTo(new CreateTable(QualifiedName.of("bar"),
                         ImmutableList.of(
-                                new ColumnDefinition(identifier("c"), simpleType(location(1, 35), "VARCHAR"), true, emptyList(), Optional.empty()),
+                                new ColumnDefinition(identifier("c"), simpleType(location(1, 35), "VARCHAR"), true, false, emptyList(), Optional.empty()),
                                 new LikeClause(QualifiedName.of("like_table"),
                                         Optional.empty()),
-                                new ColumnDefinition(identifier("d"), simpleType(location(1, 63), "BIGINT"), true, emptyList(), Optional.empty())),
+                                new ColumnDefinition(identifier("d"), simpleType(location(1, 63), "BIGINT"), true, false, emptyList(), Optional.empty())),
                         true,
                         ImmutableList.of(),
                         Optional.empty()));
@@ -1913,7 +1913,7 @@ public class TestSqlParser
                 .ignoringLocation()
                 .isEqualTo(new CreateTable(QualifiedName.of("bar"),
                         ImmutableList.of(
-                                new ColumnDefinition(identifier("c"), simpleType(location(1, 35), "VARCHAR"), true, emptyList(), Optional.empty()),
+                                new ColumnDefinition(identifier("c"), simpleType(location(1, 35), "VARCHAR"), true, false, emptyList(), Optional.empty()),
                                 new LikeClause(QualifiedName.of("like_table"),
                                         Optional.of(LikeClause.PropertiesOption.EXCLUDING))),
                         true,
@@ -1924,7 +1924,7 @@ public class TestSqlParser
                 .ignoringLocation()
                 .isEqualTo(new CreateTable(QualifiedName.of("bar"),
                         ImmutableList.of(
-                                new ColumnDefinition(identifier("c"), simpleType(location(1, 35), "VARCHAR"), true, emptyList(), Optional.empty()),
+                                new ColumnDefinition(identifier("c"), simpleType(location(1, 35), "VARCHAR"), true, false, emptyList(), Optional.empty()),
                                 new LikeClause(QualifiedName.of("like_table"),
                                         Optional.of(LikeClause.PropertiesOption.EXCLUDING))),
                         true,
@@ -1945,10 +1945,32 @@ public class TestSqlParser
                 .isEqualTo(new CreateTable(
                         QualifiedName.of("foo"),
                         ImmutableList.of(
-                                new ColumnDefinition(identifier("a"), simpleType(location(1, 20), "VARCHAR"), false, emptyList(), Optional.of("column a")),
-                                new ColumnDefinition(identifier("b"), simpleType(location(1, 59), "BIGINT"), true, emptyList(), Optional.of("hello world")),
-                                new ColumnDefinition(identifier("c"), simpleType(location(1, 91), "IPADDRESS"), true, emptyList(), Optional.empty()),
-                                new ColumnDefinition(identifier("d"), simpleType(location(1, 104), "INTEGER"), false, emptyList(), Optional.empty())),
+                                new ColumnDefinition(identifier("a"), simpleType(location(1, 20), "VARCHAR"), false, false, emptyList(), Optional.of("column a")),
+                                new ColumnDefinition(identifier("b"), simpleType(location(1, 59), "BIGINT"), true, false, emptyList(), Optional.of("hello world")),
+                                new ColumnDefinition(identifier("c"), simpleType(location(1, 91), "IPADDRESS"), true, false, emptyList(), Optional.empty()),
+                                new ColumnDefinition(identifier("d"), simpleType(location(1, 104), "INTEGER"), false, false, emptyList(), Optional.empty())),
+                        false,
+                        ImmutableList.of(),
+                        Optional.empty()));
+    }
+
+    @Test
+    public void testCreateTableWithPrimaryKey()
+    {
+        assertThat(statement(
+                "CREATE TABLE foo (" +
+                        "a VARCHAR PRIMARY KEY COMMENT 'column a', " +
+                        "b BIGINT COMMENT 'hello world', " +
+                        "c IPADDRESS, " +
+                        "d INTEGER PRIMARY KEY)"))
+                .ignoringLocation()
+                .isEqualTo(new CreateTable(
+                        QualifiedName.of("foo"),
+                        ImmutableList.of(
+                                new ColumnDefinition(identifier("a"), simpleType(location(1, 20), "VARCHAR"), true, true, emptyList(), Optional.of("column a")),
+                                new ColumnDefinition(identifier("b"), simpleType(location(1, 59), "BIGINT"), true, false, emptyList(), Optional.of("hello world")),
+                                new ColumnDefinition(identifier("c"), simpleType(location(1, 91), "IPADDRESS"), true, false, emptyList(), Optional.empty()),
+                                new ColumnDefinition(identifier("d"), simpleType(location(1, 104), "INTEGER"), true, true, emptyList(), Optional.empty())),
                         false,
                         ImmutableList.of(),
                         Optional.empty()));
@@ -2375,31 +2397,31 @@ public class TestSqlParser
                 .ignoringLocation()
                 .isEqualTo(new AddColumn(
                         QualifiedName.of("foo", "t"),
-                        new ColumnDefinition(identifier("c"), simpleType(location(1, 31), "bigint"), true, emptyList(), Optional.empty()), false, false));
+                        new ColumnDefinition(identifier("c"), simpleType(location(1, 31), "bigint"), true, false, emptyList(), Optional.empty()), false, false));
 
         assertThat(statement("ALTER TABLE foo.t ADD COLUMN d double NOT NULL"))
                 .ignoringLocation()
                 .isEqualTo(new AddColumn(
                         QualifiedName.of("foo", "t"),
-                        new ColumnDefinition(identifier("d"), simpleType(location(1, 31), "double"), false, emptyList(), Optional.empty()), false, false));
+                        new ColumnDefinition(identifier("d"), simpleType(location(1, 31), "double"), false, false, emptyList(), Optional.empty()), false, false));
 
         assertThat(statement("ALTER TABLE IF EXISTS foo.t ADD COLUMN d double NOT NULL"))
                 .ignoringLocation()
                 .isEqualTo(new AddColumn(
                         QualifiedName.of("foo", "t"),
-                        new ColumnDefinition(identifier("d"), simpleType(location(1, 31), "double"), false, emptyList(), Optional.empty()), true, false));
+                        new ColumnDefinition(identifier("d"), simpleType(location(1, 31), "double"), false, false, emptyList(), Optional.empty()), true, false));
 
         assertThat(statement("ALTER TABLE foo.t ADD COLUMN IF NOT EXISTS d double NOT NULL"))
                 .ignoringLocation()
                 .isEqualTo(new AddColumn(
                         QualifiedName.of("foo", "t"),
-                        new ColumnDefinition(identifier("d"), simpleType(location(1, 31), "double"), false, emptyList(), Optional.empty()), false, true));
+                        new ColumnDefinition(identifier("d"), simpleType(location(1, 31), "double"), false, false, emptyList(), Optional.empty()), false, true));
 
         assertThat(statement("ALTER TABLE IF EXISTS foo.t ADD COLUMN IF NOT EXISTS d double NOT NULL"))
                 .ignoringLocation()
                 .isEqualTo(new AddColumn(
                         QualifiedName.of("foo", "t"),
-                        new ColumnDefinition(identifier("d"), simpleType(location(1, 31), "double"), false, emptyList(), Optional.empty()), true, true));
+                        new ColumnDefinition(identifier("d"), simpleType(location(1, 31), "double"), false, false, emptyList(), Optional.empty()), true, true));
     }
 
     @Test

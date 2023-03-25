@@ -197,7 +197,7 @@ tableElement
     ;
 
 columnDefinition
-    : identifier type (NOT NULL)? (COMMENT string)? (WITH properties)?
+    : identifier type (NOT NULL)? (PRIMARY KEY)? (COMMENT string)? (WITH properties)?
     ;
 
 likeClause
@@ -1099,6 +1099,7 @@ POSITION: 'POSITION';
 PRECEDING: 'PRECEDING';
 PRECISION: 'PRECISION';
 PREPARE: 'PREPARE';
+PRIMARY: 'PRIMARY';
 PRIVILEGES: 'PRIVILEGES';
 PROPERTIES: 'PROPERTIES';
 PRUNE: 'PRUNE';

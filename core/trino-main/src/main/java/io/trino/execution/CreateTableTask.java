@@ -76,6 +76,7 @@ import static io.trino.spi.StandardErrorCode.TABLE_NOT_FOUND;
 import static io.trino.spi.StandardErrorCode.TYPE_NOT_FOUND;
 import static io.trino.spi.StandardErrorCode.UNSUPPORTED_TABLE_TYPE;
 import static io.trino.spi.connector.ConnectorCapabilities.NOT_NULL_COLUMN_CONSTRAINT;
+import static io.trino.spi.connector.ConnectorCapabilities.PRIMARY_KEY_COLUMN_CONSTRAINT;
 import static io.trino.sql.analyzer.SemanticExceptions.semanticException;
 import static io.trino.sql.analyzer.TypeSignatureTranslator.toTypeSignature;
 import static io.trino.sql.tree.LikeClause.PropertiesOption.EXCLUDING;
@@ -170,6 +171,9 @@ public class CreateTableTask
                 if (!column.isNullable() && !plannerContext.getMetadata().getConnectorCapabilities(session, catalogHandle).contains(NOT_NULL_COLUMN_CONSTRAINT)) {
                     throw semanticException(NOT_SUPPORTED, column, "Catalog '%s' does not support non-null column for column name '%s'", catalogName, column.getName());
                 }
+                if (column.isPrimaryKey() && !plannerContext.getMetadata().getConnectorCapabilities(session, catalogHandle).contains(PRIMARY_KEY_COLUMN_CONSTRAINT)) {
+                    throw semanticException(NOT_SUPPORTED, column, "This connector does not support creating tables with a primary key constraint");
+                }
                 Map<String, Object> columnProperties = columnPropertyManager.getProperties(
                         catalogName,
                         catalogHandle,
@@ -184,6 +188,7 @@ public class CreateTableTask
                         .setName(name)
                         .setType(type)
                         .setNullable(column.isNullable())
+                        .setPrimaryKey(column.isPrimaryKey())
                         .setComment(column.getComment())
                         .setProperties(columnProperties)
                         .build());

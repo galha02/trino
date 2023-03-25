@@ -65,6 +65,7 @@ import static io.trino.spi.StandardErrorCode.ALREADY_EXISTS;
 import static io.trino.spi.StandardErrorCode.INVALID_TABLE_PROPERTY;
 import static io.trino.spi.StandardErrorCode.NOT_SUPPORTED;
 import static io.trino.spi.connector.ConnectorCapabilities.NOT_NULL_COLUMN_CONSTRAINT;
+import static io.trino.spi.connector.ConnectorCapabilities.PRIMARY_KEY_COLUMN_CONSTRAINT;
 import static io.trino.spi.session.PropertyMetadata.stringProperty;
 import static io.trino.spi.type.BigintType.BIGINT;
 import static io.trino.spi.type.DateType.DATE;
@@ -156,7 +157,7 @@ public class TestCreateTableTask
     public void testCreateTableNotExistsTrue()
     {
         CreateTable statement = new CreateTable(QualifiedName.of("test_table"),
-                ImmutableList.of(new ColumnDefinition(identifier("a"), toSqlType(BIGINT), true, emptyList(), Optional.empty())),
+                ImmutableList.of(new ColumnDefinition(identifier("a"), toSqlType(BIGINT), true, false, emptyList(), Optional.empty())),
                 true,
                 ImmutableList.of(),
                 Optional.empty());
@@ -170,7 +171,7 @@ public class TestCreateTableTask
     public void testCreateTableNotExistsFalse()
     {
         CreateTable statement = new CreateTable(QualifiedName.of("test_table"),
-                ImmutableList.of(new ColumnDefinition(identifier("a"), toSqlType(BIGINT), true, emptyList(), Optional.empty())),
+                ImmutableList.of(new ColumnDefinition(identifier("a"), toSqlType(BIGINT), true, false, emptyList(), Optional.empty())),
                 false,
                 ImmutableList.of(),
                 Optional.empty());
@@ -187,7 +188,7 @@ public class TestCreateTableTask
     public void testCreateTableWithMaterializedViewPropertyFails()
     {
         CreateTable statement = new CreateTable(QualifiedName.of("test_table"),
-                ImmutableList.of(new ColumnDefinition(identifier("a"), toSqlType(BIGINT), true, emptyList(), Optional.empty())),
+                ImmutableList.of(new ColumnDefinition(identifier("a"), toSqlType(BIGINT), true, false, emptyList(), Optional.empty())),
                 false,
                 ImmutableList.of(new Property(new Identifier("foo"), new StringLiteral("bar"))),
                 Optional.empty());
@@ -205,9 +206,9 @@ public class TestCreateTableTask
     {
         metadata.setConnectorCapabilities(NOT_NULL_COLUMN_CONSTRAINT);
         List<TableElement> inputColumns = ImmutableList.of(
-                new ColumnDefinition(identifier("a"), toSqlType(DATE), true, emptyList(), Optional.empty()),
-                new ColumnDefinition(identifier("b"), toSqlType(VARCHAR), false, emptyList(), Optional.empty()),
-                new ColumnDefinition(identifier("c"), toSqlType(VARBINARY), false, emptyList(), Optional.empty()));
+                new ColumnDefinition(identifier("a"), toSqlType(DATE), true, false, emptyList(), Optional.empty()),
+                new ColumnDefinition(identifier("b"), toSqlType(VARCHAR), false, false, emptyList(), Optional.empty()),
+                new ColumnDefinition(identifier("c"), toSqlType(VARBINARY), false, false, emptyList(), Optional.empty()));
         CreateTable statement = new CreateTable(QualifiedName.of("test_table"), inputColumns, true, ImmutableList.of(), Optional.empty());
 
         CreateTableTask createTableTask = new CreateTableTask(plannerContext, new AllowAllAccessControl(), columnPropertyManager, tablePropertyManager);
@@ -230,12 +231,41 @@ public class TestCreateTableTask
     }
 
     @Test
+    public void testCreateWithPrimaryKeyColumns()
+    {
+        metadata.setConnectorCapabilities(PRIMARY_KEY_COLUMN_CONSTRAINT);
+        List<TableElement> inputColumns = ImmutableList.of(
+                new ColumnDefinition(identifier("a"), toSqlType(DATE), true, true, emptyList(), Optional.empty()),
+                new ColumnDefinition(identifier("b"), toSqlType(VARCHAR), true, false, emptyList(), Optional.empty()),
+                new ColumnDefinition(identifier("c"), toSqlType(VARBINARY), true, false, emptyList(), Optional.empty()));
+        CreateTable statement = new CreateTable(QualifiedName.of("test_table"), inputColumns, true, ImmutableList.of(), Optional.empty());
+
+        CreateTableTask createTableTask = new CreateTableTask(plannerContext, new AllowAllAccessControl(), columnPropertyManager, tablePropertyManager);
+        getFutureValue(createTableTask.internalExecute(statement, testSession, emptyList(), output -> {}));
+        assertEquals(metadata.getCreateTableCallCount(), 1);
+        List<ColumnMetadata> columns = metadata.getReceivedTableMetadata().get(0).getColumns();
+        assertEquals(columns.size(), 3);
+
+        assertEquals(columns.get(0).getName(), "a");
+        assertEquals(columns.get(0).getType().getDisplayName().toUpperCase(ENGLISH), "DATE");
+        assertTrue(columns.get(0).isPrimaryKey());
+
+        assertEquals(columns.get(1).getName(), "b");
+        assertEquals(columns.get(1).getType().getDisplayName().toUpperCase(ENGLISH), "VARCHAR");
+        assertFalse(columns.get(1).isPrimaryKey());
+
+        assertEquals(columns.get(2).getName(), "c");
+        assertEquals(columns.get(2).getType().getDisplayName().toUpperCase(ENGLISH), "VARBINARY");
+        assertFalse(columns.get(2).isPrimaryKey());
+    }
+
+    @Test
     public void testCreateWithUnsupportedConnectorThrowsWhenNotNull()
     {
         List<TableElement> inputColumns = ImmutableList.of(
-                new ColumnDefinition(identifier("a"), toSqlType(DATE), true, emptyList(), Optional.empty()),
-                new ColumnDefinition(identifier("b"), toSqlType(VARCHAR), false, emptyList(), Optional.empty()),
-                new ColumnDefinition(identifier("c"), toSqlType(VARBINARY), false, emptyList(), Optional.empty()));
+                new ColumnDefinition(identifier("a"), toSqlType(DATE), true, false, emptyList(), Optional.empty()),
+                new ColumnDefinition(identifier("b"), toSqlType(VARCHAR), false, false, emptyList(), Optional.empty()),
+                new ColumnDefinition(identifier("c"), toSqlType(VARBINARY), false, false, emptyList(), Optional.empty()));
         CreateTable statement = new CreateTable(
                 QualifiedName.of("test_table"),
                 inputColumns,
@@ -414,6 +444,7 @@ public class TestCreateTableTask
             return connectorCapabilities;
         }
 
+        @Override
         public void setConnectorCapabilities(ConnectorCapabilities... connectorCapabilities)
         {
             this.connectorCapabilities = immutableEnumSet(ImmutableList.copyOf(connectorCapabilities));

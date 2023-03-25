@@ -9,7 +9,7 @@ Synopsis
 
     CREATE TABLE [ IF NOT EXISTS ]
     table_name (
-      { column_name data_type [ NOT NULL ]
+      { column_name data_type [ NOT NULL ] [ PRIMARY KEY ]
           [ COMMENT comment ]
           [ WITH ( property_name = expression [, ...] ) ]
       | LIKE existing_table_name

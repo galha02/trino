@@ -33,6 +33,7 @@ public class ColumnMetadata
     private final String name;
     private final Type type;
     private final boolean nullable;
+    private final boolean primaryKey;
     private final String comment;
     private final String extraInfo;
     private final boolean hidden;
@@ -40,10 +41,10 @@ public class ColumnMetadata
 
     public ColumnMetadata(String name, Type type)
     {
-        this(name, type, true, null, null, false, emptyMap());
+        this(name, type, true, false, null, null, false, emptyMap());
     }
 
-    private ColumnMetadata(String name, Type type, boolean nullable, String comment, String extraInfo, boolean hidden, Map<String, Object> properties)
+    private ColumnMetadata(String name, Type type, boolean nullable, boolean primaryKey, String comment, String extraInfo, boolean hidden, Map<String, Object> properties)
     {
         checkNotEmpty(name, "name");
         requireNonNull(type, "type is null");
@@ -56,6 +57,7 @@ public class ColumnMetadata
         this.hidden = hidden;
         this.properties = properties.isEmpty() ? emptyMap() : unmodifiableMap(new LinkedHashMap<>(properties));
         this.nullable = nullable;
+        this.primaryKey = primaryKey;
     }
 
     public String getName()
@@ -71,6 +73,11 @@ public class ColumnMetadata
     public boolean isNullable()
     {
         return nullable;
+    }
+
+    public boolean isPrimaryKey()
+    {
+        return primaryKey;
     }
 
     @Nullable // TODO make it Optional
@@ -108,6 +115,9 @@ public class ColumnMetadata
         sb.append("name='").append(name).append('\'');
         sb.append(", type=").append(type);
         sb.append(", ").append(nullable ? "nullable" : "nonnull");
+        if (primaryKey) {
+            sb.append(", primaryKey");
+        }
         if (comment != null) {
             sb.append(", comment='").append(comment).append('\'');
         }
@@ -127,7 +137,7 @@ public class ColumnMetadata
     @Override
     public int hashCode()
     {
-        return Objects.hash(name, type, nullable, comment, extraInfo, hidden);
+        return Objects.hash(name, type, nullable, primaryKey, comment, extraInfo, hidden);
     }
 
     @Override
@@ -143,6 +153,7 @@ public class ColumnMetadata
         return Objects.equals(this.name, other.name) &&
                 Objects.equals(this.type, other.type) &&
                 Objects.equals(this.nullable, other.nullable) &&
+                Objects.equals(this.primaryKey, other.primaryKey) &&
                 Objects.equals(this.comment, other.comment) &&
                 Objects.equals(this.extraInfo, other.extraInfo) &&
                 Objects.equals(this.hidden, other.hidden);
@@ -163,6 +174,7 @@ public class ColumnMetadata
         private String name;
         private Type type;
         private boolean nullable = true;
+        private boolean primaryKey;
         private Optional<String> comment = Optional.empty();
         private Optional<String> extraInfo = Optional.empty();
         private boolean hidden;
@@ -175,6 +187,7 @@ public class ColumnMetadata
             this.name = columnMetadata.getName();
             this.type = columnMetadata.getType();
             this.nullable = columnMetadata.isNullable();
+            this.primaryKey = columnMetadata.isPrimaryKey();
             this.comment = Optional.ofNullable(columnMetadata.getComment());
             this.extraInfo = Optional.ofNullable(columnMetadata.getExtraInfo());
             this.hidden = columnMetadata.isHidden();
@@ -196,6 +209,12 @@ public class ColumnMetadata
         public Builder setNullable(boolean nullable)
         {
             this.nullable = nullable;
+            return this;
+        }
+
+        public Builder setPrimaryKey(boolean primaryKey)
+        {
+            this.primaryKey = primaryKey;
             return this;
         }
 
@@ -229,6 +248,7 @@ public class ColumnMetadata
                     name,
                     type,
                     nullable,
+                    primaryKey,
                     comment.orElse(null),
                     extraInfo.orElse(null),
                     hidden,

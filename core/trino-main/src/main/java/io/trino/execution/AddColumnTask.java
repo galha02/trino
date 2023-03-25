@@ -44,6 +44,7 @@ import static io.trino.spi.StandardErrorCode.NOT_SUPPORTED;
 import static io.trino.spi.StandardErrorCode.TABLE_NOT_FOUND;
 import static io.trino.spi.StandardErrorCode.TYPE_NOT_FOUND;
 import static io.trino.spi.connector.ConnectorCapabilities.NOT_NULL_COLUMN_CONSTRAINT;
+import static io.trino.spi.connector.ConnectorCapabilities.PRIMARY_KEY_COLUMN_CONSTRAINT;
 import static io.trino.sql.analyzer.SemanticExceptions.semanticException;
 import static io.trino.sql.analyzer.TypeSignatureTranslator.toTypeSignature;
 import static io.trino.type.UnknownType.UNKNOWN;
@@ -115,6 +116,9 @@ public class AddColumnTask
         if (!element.isNullable() && !plannerContext.getMetadata().getConnectorCapabilities(session, catalogHandle).contains(NOT_NULL_COLUMN_CONSTRAINT)) {
             throw semanticException(NOT_SUPPORTED, element, "Catalog '%s' does not support NOT NULL for column '%s'", catalogHandle, element.getName());
         }
+        if (element.isPrimaryKey() && !plannerContext.getMetadata().getConnectorCapabilities(session, catalogHandle).contains(PRIMARY_KEY_COLUMN_CONSTRAINT)) {
+            throw semanticException(NOT_SUPPORTED, element, "This connector does not support adding columns with a primary key constraint");
+        }
         Map<String, Object> columnProperties = columnPropertyManager.getProperties(
                 catalogHandle.getCatalogName(),
                 catalogHandle,
@@ -129,6 +133,7 @@ public class AddColumnTask
                 .setName(element.getName().getValue())
                 .setType(type)
                 .setNullable(element.isNullable())
+                .setPrimaryKey(element.isPrimaryKey())
                 .setComment(element.getComment())
                 .setProperties(columnProperties)
                 .build();

@@ -674,6 +674,7 @@ public final class ShowQueriesRewrite
                                     new Identifier(column.getName()),
                                     toSqlType(column.getType()),
                                     column.isNullable(),
+                                    column.isPrimaryKey(),
                                     propertyNodes,
                                     Optional.ofNullable(column.getComment()));
                         })

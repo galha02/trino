@@ -79,6 +79,7 @@ import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.Set;
 
+import static com.google.common.collect.Sets.immutableEnumSet;
 import static io.trino.metadata.RedirectionAwareTableHandle.noRedirection;
 import static io.trino.spi.StandardErrorCode.FUNCTION_NOT_FOUND;
 import static io.trino.spi.function.FunctionId.toFunctionId;
@@ -95,11 +96,17 @@ public abstract class AbstractMockMetadata
     }
 
     private final ResolvedFunctionDecoder functionDecoder = new ResolvedFunctionDecoder(TESTING_TYPE_MANAGER::getType);
+    private Set<ConnectorCapabilities> connectorCapabilities = ImmutableSet.of();
 
     @Override
     public Set<ConnectorCapabilities> getConnectorCapabilities(Session session, CatalogHandle catalogHandle)
     {
-        throw new UnsupportedOperationException();
+        return connectorCapabilities;
+    }
+
+    public void setConnectorCapabilities(ConnectorCapabilities... connectorCapabilities)
+    {
+        this.connectorCapabilities = immutableEnumSet(ImmutableList.copyOf(connectorCapabilities));
     }
 
     @Override

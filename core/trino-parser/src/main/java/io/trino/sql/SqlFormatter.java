@@ -1627,6 +1627,9 @@ public final class SqlFormatter
             if (!column.isNullable()) {
                 builder.append(" NOT NULL");
             }
+            if (column.isPrimaryKey()) {
+                builder.append(" PRIMARY KEY");
+            }
             column.getComment().ifPresent(comment -> builder
                     .append(" COMMENT ")
                     .append(formatStringLiteral(comment)));
