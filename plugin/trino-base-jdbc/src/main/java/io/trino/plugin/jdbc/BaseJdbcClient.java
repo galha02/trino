@@ -294,6 +294,7 @@ public abstract class BaseJdbcClient
         try (Connection connection = connectionFactory.openConnection(session);
                 ResultSet resultSet = getColumns(tableHandle, connection.getMetaData())) {
             Map<String, CaseSensitivity> caseSensitivityMapping = getCaseSensitivityForColumns(session, connection, tableHandle);
+            List<String> primaryKeys = getPrimaryKeys(connection, tableHandle);
             int allColumns = 0;
             List<JdbcColumnHandle> columns = new ArrayList<>();
             while (resultSet.next()) {
@@ -313,6 +314,7 @@ public abstract class BaseJdbcClient
                 Optional<ColumnMapping> columnMapping = toColumnMapping(session, connection, typeHandle);
                 log.debug("Mapping data type of '%s' column '%s': %s mapped to %s", schemaTableName, columnName, typeHandle, columnMapping);
                 boolean nullable = (resultSet.getInt("NULLABLE") != columnNoNulls);
+                boolean primaryKey = primaryKeys.contains(columnName);
                 // Note: some databases (e.g. SQL Server) do not return column remarks/comment here.
                 Optional<String> comment = Optional.ofNullable(emptyToNull(resultSet.getString("REMARKS")));
                 // skip unsupported column types
@@ -321,6 +323,7 @@ public abstract class BaseJdbcClient
                         .setJdbcTypeHandle(typeHandle)
                         .setColumnType(mapping.getType())
                         .setNullable(nullable)
+                        .setPrimaryKey(primaryKey)
                         .setComment(comment)
                         .build()));
                 if (columnMapping.isEmpty()) {
@@ -348,6 +351,12 @@ public abstract class BaseJdbcClient
     protected Map<String, CaseSensitivity> getCaseSensitivityForColumns(ConnectorSession session, Connection connection, JdbcTableHandle tableHandle)
     {
         return ImmutableMap.of();
+    }
+
+    protected List<String> getPrimaryKeys(Connection connection, JdbcTableHandle handle)
+            throws SQLException
+    {
+        return ImmutableList.of();
     }
 
     protected static Optional<Integer> getInteger(ResultSet resultSet, String columnLabel)
@@ -685,6 +694,9 @@ public abstract class BaseJdbcClient
     {
         if (column.getComment() != null) {
             throw new TrinoException(NOT_SUPPORTED, "This connector does not support creating tables with column comment");
+        }
+        if (column.isPrimaryKey()) {
+            throw new TrinoException(NOT_SUPPORTED, "This connector does not support creating tables with a primary key constraint");
         }
         StringBuilder sb = new StringBuilder()
                 .append(quoted(columnName))

@@ -226,6 +226,9 @@ public abstract class BaseIcebergConnectorTest
             case SUPPORTS_ADD_COLUMN_NOT_NULL_CONSTRAINT:
                 return false;
 
+            case SUPPORTS_PRIMARY_KEY_CONSTRAINT:
+                return false;
+
             default:
                 return super.hasBehavior(connectorBehavior);
         }

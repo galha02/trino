@@ -37,6 +37,7 @@ public abstract class BaseMongoConnectorSmokeTest
                 return false;
 
             case SUPPORTS_NOT_NULL_CONSTRAINT:
+            case SUPPORTS_PRIMARY_KEY_CONSTRAINT:
                 return false;
 
             default:

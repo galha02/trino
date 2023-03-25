@@ -157,6 +157,9 @@ public class TestDeltaLakeConnectorTest
             case SUPPORTS_CREATE_MATERIALIZED_VIEW:
                 return false;
 
+            case SUPPORTS_PRIMARY_KEY_CONSTRAINT:
+                return false;
+
             default:
                 return super.hasBehavior(connectorBehavior);
         }
