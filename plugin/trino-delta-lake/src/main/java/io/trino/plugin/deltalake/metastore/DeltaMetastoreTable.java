@@ -11,30 +11,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.trino.plugin.deltalake;
+package io.trino.plugin.deltalake.metastore;
 
-import io.trino.spi.TrinoException;
 import io.trino.spi.connector.SchemaTableName;
 
 import static java.util.Objects.requireNonNull;
 
-public record CorruptedDeltaLakeTableHandle(
+public record DeltaMetastoreTable(
         SchemaTableName schemaTableName,
         boolean managed,
-        String location,
-        TrinoException originalException)
-        implements LocatedTableHandle
+        String location)
 {
-    public CorruptedDeltaLakeTableHandle
+    public DeltaMetastoreTable
     {
         requireNonNull(schemaTableName, "schemaTableName is null");
         requireNonNull(location, "location is null");
-        requireNonNull(originalException, "originalException is null");
-    }
-
-    public TrinoException createException()
-    {
-        // Original exception originates from a different place. Create a new exception not to confuse reader with a stacktrace not matching call site.
-        return new TrinoException(originalException.getErrorCode(), originalException.getMessage(), originalException);
     }
 }
