@@ -281,12 +281,12 @@ Cumulative distribution functions
 
 .. function:: chiSquaredCdf(df, value) -> double
 
-    Compute the Chi-square cdf with given df (degrees of freedom) parameter: P(N < value; df).
-    The df parameter must be a positive real number, and value must be a non-negative real
-    value (both of type DOUBLE).
+    Compute the Chi-square cumulative distribution function with given df (degrees of freedom) 
+    parameter: P(N < value; df). The df parameter must be a positive real number, and value 
+    must be a non-negative real value (both of type DOUBLE).
 
 .. function:: inverseChiSquaredCdf(df, p) -> double
 
-    Compute the inverse of the Chi-square cdf with given df (degrees of freedom) parameter
-    for the cumulative probability (p): P(N < n). The df parameter must be positive real
-    values. The probability p must lie on the interval [0, 1].
+    Compute the inverse of the Chi-square cumulative distribution function with given df 
+    (degrees of freedom) parameter for the cumulative probability (p): P(N < n). The df 
+    parameter must be positive real values. The probability p must lie on the interval [0, 1].

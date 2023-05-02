@@ -39,8 +39,8 @@ import io.trino.type.BlockTypeOperators.BlockPositionEqual;
 import io.trino.type.BlockTypeOperators.BlockPositionHashCode;
 import io.trino.type.Constraint;
 import org.apache.commons.math3.distribution.BetaDistribution;
-import org.apache.commons.math3.special.Erf;
 import org.apache.commons.math3.distribution.ChiSquaredDistribution;
+import org.apache.commons.math3.special.Erf;
 
 import java.math.BigInteger;
 import java.math.RoundingMode;
