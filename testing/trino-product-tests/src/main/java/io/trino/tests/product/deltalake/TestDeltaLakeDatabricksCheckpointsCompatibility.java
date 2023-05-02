@@ -158,9 +158,7 @@ public class TestDeltaLakeDatabricksCheckpointsCompatibility
                             "WITH (\n" +
                             "   checkpoint_interval = 5,\n" +
                             "   location = 's3://%s/%s',\n" +
-                            "   partitioned_by = ARRAY['a_number'],\n" +
-                            "   reader_version = 1,\n" +
-                            "   writer_version = 2\n" +
+                            "   partitioned_by = ARRAY['a_number']\n" +
                             ")",
                     tableName,
                     bucketName,
@@ -264,7 +262,7 @@ public class TestDeltaLakeDatabricksCheckpointsCompatibility
 
     private String getDatabricksTablePropertiesWithCheckpointInterval()
     {
-        if (databricksRuntimeVersion.equals(DATABRICKS_113_RUNTIME_VERSION)) {
+        if (databricksRuntimeVersion.isAtLeast(DATABRICKS_113_RUNTIME_VERSION)) {
             return "TBLPROPERTIES (\n" +
                     "  'delta.checkpointInterval' = '3',\n" +
                     "  'delta.minReaderVersion' = '1',\n" +

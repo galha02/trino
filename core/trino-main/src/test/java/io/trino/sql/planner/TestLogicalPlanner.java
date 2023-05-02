@@ -31,8 +31,11 @@ import io.trino.sql.planner.OptimizerConfig.JoinReorderingStrategy;
 import io.trino.sql.planner.assertions.BasePlanTest;
 import io.trino.sql.planner.assertions.PlanMatchPattern;
 import io.trino.sql.planner.assertions.RowNumberSymbolMatcher;
+import io.trino.sql.planner.iterative.IterativeOptimizer;
+import io.trino.sql.planner.iterative.rule.PushPredicateIntoTableScan;
 import io.trino.sql.planner.optimizations.AddLocalExchanges;
 import io.trino.sql.planner.optimizations.CheckSubqueryNodesAreRewritten;
+import io.trino.sql.planner.optimizations.PlanOptimizer;
 import io.trino.sql.planner.plan.AggregationNode;
 import io.trino.sql.planner.plan.ApplyNode;
 import io.trino.sql.planner.plan.CorrelatedJoinNode;
@@ -820,15 +823,15 @@ public class TestLogicalPlanner
                 "SELECT regionkey, n.name FROM region LEFT JOIN LATERAL (SELECT name FROM nation) n ON NULL",
                 CREATED,
                 anyTree(
-                    correlatedJoin(
-                            List.of("r_row_number", "r_regionkey", "r_name", "r_comment"),
-                            "CAST(null AS boolean)",
-                            tableScan("region", Map.of(
-                                    "r_row_number", "row_number",
-                                    "r_regionkey", "regionkey",
-                                    "r_name", "name",
-                                    "r_comment", "comment")),
-                            anyTree(tableScan("nation")))));
+                        correlatedJoin(
+                                List.of("r_row_number", "r_regionkey", "r_name", "r_comment"),
+                                "CAST(null AS boolean)",
+                                tableScan("region", Map.of(
+                                        "r_row_number", "row_number",
+                                        "r_regionkey", "regionkey",
+                                        "r_name", "name",
+                                        "r_comment", "comment")),
+                                anyTree(tableScan("nation")))));
         assertPlan(
                 "SELECT regionkey, n.name FROM region LEFT JOIN LATERAL (SELECT name FROM nation) n ON NULL",
                 any(
@@ -1030,7 +1033,24 @@ public class TestLogicalPlanner
                                                 project(
                                                         any(
                                                                 tableScan("lineitem", ImmutableMap.of("L", "orderkey")))))))),
-                optimizer -> !(optimizer instanceof AddLocalExchanges || optimizer instanceof CheckSubqueryNodesAreRewritten));
+                optimizer -> !
+                        (optimizer instanceof AddLocalExchanges
+                                || optimizer instanceof CheckSubqueryNodesAreRewritten
+                                || isPushPredicateIntoTableScanWithPrunePredicateOperation(optimizer)));
+    }
+
+    private boolean isPushPredicateIntoTableScanWithPrunePredicateOperation(PlanOptimizer optimizer)
+    {
+        if (optimizer instanceof IterativeOptimizer iterativeOptimizer) {
+            return iterativeOptimizer.getRules().stream().anyMatch(rule -> {
+                if (rule instanceof PushPredicateIntoTableScan pushPredicateIntoTableScan) {
+                    return pushPredicateIntoTableScan.getPruneWithPredicateExpression();
+                }
+                return false;
+            });
+        }
+
+        return false;
     }
 
     @Test
@@ -1134,12 +1154,51 @@ public class TestLogicalPlanner
                 "SELECT * FROM nation WHERE 1 = 0",
                 output(
                         values("nationkey", "name", "regionkey", "comment")));
+    }
+
+    @Test
+    public void testRemovesNullFilter()
+    {
         assertPlan(
                 "SELECT * FROM nation WHERE null",
                 output(
                         values("nationkey", "name", "regionkey", "comment")));
         assertPlan(
+                "SELECT * FROM nation WHERE NOT null",
+                output(
+                        values("nationkey", "name", "regionkey", "comment")));
+        assertPlan(
+                "SELECT * FROM nation WHERE CAST(null AS BOOLEAN)",
+                output(
+                        values("nationkey", "name", "regionkey", "comment")));
+        assertPlan(
+                "SELECT * FROM nation WHERE NOT CAST(null AS BOOLEAN)",
+                output(
+                        values("nationkey", "name", "regionkey", "comment")));
+        assertPlan(
                 "SELECT * FROM nation WHERE nationkey = null",
+                output(
+                        values("nationkey", "name", "regionkey", "comment")));
+        assertPlan(
+                "SELECT * FROM nation WHERE nationkey = CAST(null AS BIGINT)",
+                output(
+                        values("nationkey", "name", "regionkey", "comment")));
+        assertPlan(
+                "SELECT * FROM nation WHERE nationkey < null OR nationkey > null",
+                output(
+                        values("nationkey", "name", "regionkey", "comment")));
+        assertPlan(
+                "SELECT * FROM nation WHERE nationkey = 19 AND CAST(null AS BOOLEAN)",
+                output(
+                        values("nationkey", "name", "regionkey", "comment")));
+    }
+
+    @Test
+    public void testRemovesFalseFilter()
+    {
+        // Regression test for https://github.com/trinodb/trino/issues/16515
+        assertPlan(
+                "SELECT * FROM nation WHERE CAST(name AS varchar(1)) = 'PO'",
                 output(
                         values("nationkey", "name", "regionkey", "comment")));
     }

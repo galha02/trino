@@ -34,7 +34,9 @@ import io.airlift.jaxrs.JaxrsModule;
 import io.airlift.jmx.testing.TestingJmxModule;
 import io.airlift.json.JsonModule;
 import io.airlift.node.testing.TestingNodeModule;
+import io.airlift.openmetrics.JmxOpenMetricsModule;
 import io.airlift.tracetoken.TraceTokenModule;
+import io.airlift.tracing.TracingModule;
 import io.trino.connector.CatalogManagerModule;
 import io.trino.connector.ConnectorName;
 import io.trino.connector.ConnectorServicesProvider;
@@ -62,12 +64,13 @@ import io.trino.metadata.InternalNodeManager;
 import io.trino.metadata.Metadata;
 import io.trino.metadata.ProcedureRegistry;
 import io.trino.metadata.SessionPropertyManager;
+import io.trino.metadata.TablePropertyManager;
 import io.trino.security.AccessControl;
 import io.trino.security.AccessControlConfig;
 import io.trino.security.AccessControlManager;
 import io.trino.security.GroupProviderManager;
 import io.trino.server.GracefulShutdownHandler;
-import io.trino.server.PluginManager;
+import io.trino.server.PluginInstaller;
 import io.trino.server.Server;
 import io.trino.server.ServerMainModule;
 import io.trino.server.SessionPropertyDefaults;
@@ -129,6 +132,8 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 public class TestingTrinoServer
         implements Closeable
 {
+    private static final String VERSION = "testversion";
+
     public static TestingTrinoServer create()
     {
         return builder().build();
@@ -143,10 +148,11 @@ public class TestingTrinoServer
     private final Path baseDataDir;
     private final boolean preserveData;
     private final LifeCycleManager lifeCycleManager;
-    private final PluginManager pluginManager;
+    private final PluginInstaller pluginInstaller;
     private final Optional<CatalogManager> catalogManager;
     private final TestingHttpServer server;
     private final TransactionManager transactionManager;
+    private final TablePropertyManager tablePropertyManager;
     private final Metadata metadata;
     private final TypeManager typeManager;
     private final QueryExplainer queryExplainer;
@@ -256,12 +262,14 @@ public class TestingTrinoServer
                 .add(new JaxrsModule())
                 .add(new MBeanModule())
                 .add(new TestingJmxModule())
+                .add(new JmxOpenMetricsModule())
                 .add(new EventModule())
                 .add(new TraceTokenModule())
+                .add(new TracingModule("trino", VERSION))
                 .add(new ServerSecurityModule())
                 .add(new CatalogManagerModule())
                 .add(new TransactionManagerModule())
-                .add(new ServerMainModule("testversion"))
+                .add(new ServerMainModule(VERSION))
                 .add(new TestingWarningCollectorModule())
                 .add(binder -> {
                     binder.bind(EventListenerConfig.class).in(Scopes.SINGLETON);
@@ -280,6 +288,10 @@ public class TestingTrinoServer
                     binder.bind(ProcedureTester.class).in(Scopes.SINGLETON);
                     binder.bind(ExchangeManagerRegistry.class).in(Scopes.SINGLETON);
                 });
+
+        if (coordinator) {
+            modules.add(new TestingSessionTimeModule());
+        }
 
         if (discoveryUri.isPresent()) {
             requireNonNull(environment, "environment required when discoveryUri is present");
@@ -308,7 +320,7 @@ public class TestingTrinoServer
 
         lifeCycleManager = injector.getInstance(LifeCycleManager.class);
 
-        pluginManager = injector.getInstance(PluginManager.class);
+        pluginInstaller = injector.getInstance(PluginInstaller.class);
 
         Optional<CatalogManager> catalogManager = Optional.empty();
         if (injector.getExistingBinding(Key.get(CatalogManager.class)) != null) {
@@ -318,6 +330,7 @@ public class TestingTrinoServer
 
         server = injector.getInstance(TestingHttpServer.class);
         transactionManager = injector.getInstance(TransactionManager.class);
+        tablePropertyManager = injector.getInstance(TablePropertyManager.class);
         globalFunctionCatalog = injector.getInstance(GlobalFunctionCatalog.class);
         metadata = injector.getInstance(Metadata.class);
         typeManager = injector.getInstance(TypeManager.class);
@@ -393,7 +406,7 @@ public class TestingTrinoServer
 
     public void installPlugin(Plugin plugin)
     {
-        pluginManager.installPlugin(plugin, ignored -> plugin.getClass().getClassLoader());
+        pluginInstaller.installPlugin(plugin, ignored -> plugin.getClass().getClassLoader());
     }
 
     public DispatchManager getDispatchManager()
@@ -488,6 +501,11 @@ public class TestingTrinoServer
     public TransactionManager getTransactionManager()
     {
         return transactionManager;
+    }
+
+    public TablePropertyManager getTablePropertyManager()
+    {
+        return tablePropertyManager;
     }
 
     public Metadata getMetadata()

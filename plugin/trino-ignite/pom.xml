@@ -5,7 +5,7 @@
     <parent>
         <groupId>io.trino</groupId>
         <artifactId>trino-root</artifactId>
-        <version>409-SNAPSHOT</version>
+        <version>416-SNAPSHOT</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
@@ -15,6 +15,9 @@
 
     <properties>
         <air.main.basedir>${project.parent.basedir}</air.main.basedir>
+        <air.test.jvm.additional-arguments>
+            --add-opens=java.base/java.nio=ALL-UNNAMED
+        </air.test.jvm.additional-arguments>
     </properties>
 
     <dependencies>
@@ -31,6 +34,11 @@
         <dependency>
             <groupId>io.trino</groupId>
             <artifactId>trino-plugin-toolkit</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.airlift</groupId>
+            <artifactId>configuration</artifactId>
         </dependency>
 
         <dependency>
@@ -51,6 +59,11 @@
         <dependency>
             <groupId>javax.inject</groupId>
             <artifactId>javax.inject</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>javax.validation</groupId>
+            <artifactId>validation-api</artifactId>
         </dependency>
 
         <dependency>
@@ -100,6 +113,18 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-annotations</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-context</artifactId>
             <scope>provided</scope>
         </dependency>
 
@@ -191,18 +216,4 @@
         </dependency>
 
     </dependencies>
-
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <configuration>
-                    <argLine>
-                        --add-opens=java.base/java.nio=ALL-UNNAMED
-                    </argLine>
-                </configuration>
-            </plugin>
-        </plugins>
-    </build>
 </project>

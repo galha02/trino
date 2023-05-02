@@ -16,6 +16,7 @@ package io.trino.plugin.iceberg.catalog.jdbc;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import io.airlift.log.Logger;
 import io.trino.filesystem.TrinoFileSystemFactory;
 import io.trino.plugin.base.CatalogName;
 import io.trino.plugin.iceberg.catalog.AbstractTrinoCatalog;
@@ -30,10 +31,10 @@ import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.connector.TableNotFoundException;
 import io.trino.spi.security.TrinoPrincipal;
 import io.trino.spi.type.TypeManager;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.Transaction;
@@ -50,12 +51,15 @@ import java.util.concurrent.ConcurrentHashMap;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static com.google.common.collect.ImmutableMap.toImmutableMap;
 import static com.google.common.collect.Maps.transformValues;
+import static io.trino.filesystem.Locations.appendPath;
 import static io.trino.plugin.iceberg.IcebergErrorCode.ICEBERG_CATALOG_ERROR;
+import static io.trino.plugin.iceberg.IcebergErrorCode.ICEBERG_INVALID_METADATA;
 import static io.trino.plugin.iceberg.IcebergSchemaProperties.LOCATION_PROPERTY;
 import static io.trino.plugin.iceberg.IcebergUtil.getIcebergTableWithMetadata;
 import static io.trino.plugin.iceberg.IcebergUtil.loadIcebergTable;
 import static io.trino.plugin.iceberg.IcebergUtil.validateTableCanBeDropped;
 import static io.trino.spi.StandardErrorCode.NOT_SUPPORTED;
+import static java.lang.String.format;
 import static java.util.Locale.ENGLISH;
 import static java.util.Objects.requireNonNull;
 import static org.apache.iceberg.CatalogUtil.dropTableData;
@@ -63,6 +67,8 @@ import static org.apache.iceberg.CatalogUtil.dropTableData;
 public class TrinoJdbcCatalog
         extends AbstractTrinoCatalog
 {
+    private static final Logger LOG = Logger.get(TrinoJdbcCatalog.class);
+
     private final JdbcCatalog jdbcCatalog;
     private final IcebergJdbcClient jdbcClient;
     private final TrinoFileSystemFactory fileSystemFactory;
@@ -162,17 +168,20 @@ public class TrinoJdbcCatalog
     private List<String> listNamespaces(ConnectorSession session, Optional<String> namespace)
     {
         if (namespace.isPresent() && namespaceExists(session, namespace.get())) {
-            if ("information_schema".equals(namespace.get())) {
-                // TODO https://github.com/trinodb/trino/issues/1559 this should be filtered out in engine.
-                return ImmutableList.of();
-            }
             return ImmutableList.of(namespace.get());
         }
         return listNamespaces(session);
     }
 
     @Override
-    public Transaction newCreateTableTransaction(ConnectorSession session, SchemaTableName schemaTableName, Schema schema, PartitionSpec partitionSpec, String location, Map<String, String> properties)
+    public Transaction newCreateTableTransaction(
+            ConnectorSession session,
+            SchemaTableName schemaTableName,
+            Schema schema,
+            PartitionSpec partitionSpec,
+            SortOrder sortOrder,
+            String location,
+            Map<String, String> properties)
     {
         if (!listNamespaces(session, Optional.of(schemaTableName.getSchemaName())).contains(schemaTableName.getSchemaName())) {
             throw new SchemaNotFoundException(schemaTableName.getSchemaName());
@@ -182,6 +191,7 @@ public class TrinoJdbcCatalog
                 schemaTableName,
                 schema,
                 partitionSpec,
+                sortOrder,
                 location,
                 properties,
                 Optional.of(session.getUser()));
@@ -210,8 +220,29 @@ public class TrinoJdbcCatalog
         validateTableCanBeDropped(table);
 
         jdbcCatalog.dropTable(toIdentifier(schemaTableName), false);
-        dropTableData(table.io(), table.operations().current());
+        try {
+            dropTableData(table.io(), table.operations().current());
+        }
+        catch (RuntimeException e) {
+            // If the snapshot file is not found, an exception will be thrown by the dropTableData function.
+            // So log the exception and continue with deleting the table location
+            LOG.warn(e, "Failed to delete table data referenced by metadata");
+        }
         deleteTableDirectory(fileSystemFactory.create(session), schemaTableName, table.location());
+    }
+
+    @Override
+    public void dropCorruptedTable(ConnectorSession session, SchemaTableName schemaTableName)
+    {
+        Optional<String> metadataLocation = jdbcClient.getMetadataLocation(schemaTableName.getSchemaName(), schemaTableName.getTableName());
+        if (!jdbcCatalog.dropTable(toIdentifier(schemaTableName), false)) {
+            throw new TableNotFoundException(schemaTableName);
+        }
+        if (metadataLocation.isEmpty()) {
+            throw new TrinoException(ICEBERG_INVALID_METADATA, format("Could not find metadata_location for table %s", schemaTableName));
+        }
+        String tableLocation = metadataLocation.get().replaceFirst("/metadata/[^/]*$", "");
+        deleteTableDirectory(fileSystemFactory.create(session), schemaTableName, tableLocation);
     }
 
     @Override
@@ -252,23 +283,16 @@ public class TrinoJdbcCatalog
     {
         Namespace namespace = Namespace.of(schemaTableName.getSchemaName());
         String tableName = createNewTableName(schemaTableName.getTableName());
-        Optional<String> databaseLocation;
-        if (!jdbcCatalog.namespaceExists(namespace)) {
-            databaseLocation = Optional.empty();
-        }
-        else {
+
+        Optional<String> databaseLocation = Optional.empty();
+        if (jdbcCatalog.namespaceExists(namespace)) {
             databaseLocation = Optional.ofNullable(jdbcCatalog.loadNamespaceMetadata(namespace).get(LOCATION_PROPERTY));
         }
 
-        Path location;
-        if (databaseLocation.isEmpty()) {
-            location = new Path(new Path(defaultWarehouseDir, schemaTableName.getSchemaName()), tableName);
-        }
-        else {
-            location = new Path(databaseLocation.get(), tableName);
-        }
+        String schemaLocation = databaseLocation.orElseGet(() ->
+                appendPath(defaultWarehouseDir, schemaTableName.getSchemaName()));
 
-        return location.toString();
+        return appendPath(schemaLocation, tableName);
     }
 
     @Override

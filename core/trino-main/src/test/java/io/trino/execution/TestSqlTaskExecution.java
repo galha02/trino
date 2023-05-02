@@ -24,6 +24,7 @@ import io.airlift.slice.Slice;
 import io.airlift.stats.TestingGcMonitor;
 import io.airlift.units.DataSize;
 import io.airlift.units.Duration;
+import io.opentelemetry.api.trace.Span;
 import io.trino.execution.buffer.BufferResult;
 import io.trino.execution.buffer.BufferState;
 import io.trino.execution.buffer.OutputBuffer;
@@ -52,7 +53,6 @@ import io.trino.spi.connector.ConnectorSplit;
 import io.trino.spiller.SpillSpaceTracker;
 import io.trino.sql.planner.LocalExecutionPlanner.LocalExecutionPlan;
 import io.trino.sql.planner.plan.PlanNodeId;
-import org.openjdk.jol.info.ClassLayout;
 import org.testng.annotations.Test;
 
 import java.util.List;
@@ -66,6 +66,8 @@ import java.util.function.Supplier;
 
 import static com.google.common.base.Preconditions.checkState;
 import static io.airlift.concurrent.Threads.threadsNamed;
+import static io.airlift.slice.SizeOf.instanceSize;
+import static io.airlift.tracing.Tracing.noopTracer;
 import static io.airlift.units.DataSize.Unit.GIGABYTE;
 import static io.airlift.units.DataSize.Unit.MEGABYTE;
 import static io.trino.SessionTestUtils.TEST_SESSION;
@@ -79,7 +81,6 @@ import static io.trino.execution.buffer.PagesSerdeUtil.getSerializedPagePosition
 import static io.trino.execution.buffer.PipelinedOutputBuffers.BufferType.PARTITIONED;
 import static io.trino.memory.context.AggregatedMemoryContext.newSimpleAggregatedMemoryContext;
 import static io.trino.testing.TestingHandles.TEST_CATALOG_HANDLE;
-import static java.lang.Math.toIntExact;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.Executors.newScheduledThreadPool;
 import static java.util.concurrent.TimeUnit.HOURS;
@@ -137,10 +138,12 @@ public class TestSqlTaskExecution
             SqlTaskExecution sqlTaskExecution = new SqlTaskExecution(
                     taskStateMachine,
                     taskContext,
+                    Span.getInvalid(),
                     outputBuffer,
                     localExecutionPlan,
                     taskExecutor,
                     createTestSplitMonitor(),
+                    noopTracer(),
                     taskNotificationExecutor);
             sqlTaskExecution.start();
 
@@ -493,7 +496,7 @@ public class TestSqlTaskExecution
     public static class TestingSplit
             implements ConnectorSplit
     {
-        private static final int INSTANCE_SIZE = toIntExact(ClassLayout.parseClass(TestingSplit.class).instanceSize());
+        private static final int INSTANCE_SIZE = instanceSize(TestingSplit.class);
 
         private final int begin;
         private final int end;

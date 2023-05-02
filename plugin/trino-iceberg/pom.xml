@@ -5,7 +5,7 @@
     <parent>
         <groupId>io.trino</groupId>
         <artifactId>trino-root</artifactId>
-        <version>409-SNAPSHOT</version>
+        <version>416-SNAPSHOT</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
@@ -71,11 +71,6 @@
         <dependency>
             <groupId>io.trino</groupId>
             <artifactId>trino-plugin-toolkit</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>io.trino.hadoop</groupId>
-            <artifactId>hadoop-apache</artifactId>
         </dependency>
 
         <dependency>
@@ -175,6 +170,11 @@
         </dependency>
 
         <dependency>
+            <groupId>javax.annotation</groupId>
+            <artifactId>javax.annotation-api</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>javax.inject</groupId>
             <artifactId>javax.inject</artifactId>
         </dependency>
@@ -187,6 +187,11 @@
         <dependency>
             <groupId>joda-time</groupId>
             <artifactId>joda-time</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.avro</groupId>
+            <artifactId>avro</artifactId>
         </dependency>
 
         <dependency>
@@ -209,6 +214,11 @@
         <dependency>
             <groupId>org.apache.iceberg</groupId>
             <artifactId>iceberg-core</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.iceberg</groupId>
+            <artifactId>iceberg-orc</artifactId>
         </dependency>
 
         <dependency>
@@ -239,6 +249,12 @@
         </dependency>
 
         <dependency>
+            <groupId>io.trino.hadoop</groupId>
+            <artifactId>hadoop-apache</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
             <groupId>io.airlift</groupId>
             <artifactId>concurrent</artifactId>
             <scope>runtime</scope>
@@ -250,7 +266,6 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- used by tests but also needed transitively -->
         <dependency>
             <groupId>io.airlift</groupId>
             <artifactId>node</artifactId>
@@ -272,14 +287,14 @@
         <dependency>
             <groupId>org.apache.httpcomponents.client5</groupId>
             <artifactId>httpclient5</artifactId>
-            <version>5.1</version>
+            <version>5.2.1</version>
             <scope>runtime</scope>
         </dependency>
 
         <dependency>
             <groupId>org.apache.httpcomponents.core5</groupId>
             <artifactId>httpcore5</artifactId>
-            <version>5.1.1</version>
+            <version>5.2.1</version>
             <scope>runtime</scope>
         </dependency>
 
@@ -287,12 +302,6 @@
             <groupId>org.apache.iceberg</groupId>
             <artifactId>iceberg-bundled-guava</artifactId>
             <version>${dep.iceberg.version}</version>
-            <scope>runtime</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.apache.iceberg</groupId>
-            <artifactId>iceberg-orc</artifactId>
             <scope>runtime</scope>
         </dependency>
 
@@ -328,6 +337,18 @@
         </dependency>
 
         <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-context</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
             <groupId>org.openjdk.jol</groupId>
             <artifactId>jol-core</artifactId>
             <scope>provided</scope>
@@ -343,6 +364,13 @@
         <dependency>
             <groupId>io.trino</groupId>
             <artifactId>trino-exchange-filesystem</artifactId>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.trino</groupId>
+            <artifactId>trino-filesystem</artifactId>
             <type>test-jar</type>
             <scope>test</scope>
         </dependency>
@@ -492,17 +520,8 @@
     <build>
         <plugins>
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-enforcer-plugin</artifactId>
-                <configuration>
-                    <rules>
-                        <requireUpperBoundDeps>
-                            <excludes combine.children="append">
-                                <exclude>com.google.guava:guava</exclude>
-                            </excludes>
-                        </requireUpperBoundDeps>
-                    </rules>
-                </configuration>
+                <groupId>org.antlr</groupId>
+                <artifactId>antlr4-maven-plugin</artifactId>
             </plugin>
 
             <plugin>
@@ -536,6 +555,8 @@
                         <artifactId>maven-surefire-plugin</artifactId>
                         <configuration>
                             <excludes>
+                                <exclude>**/Test*Avro*.java</exclude>
+                                <exclude>**/Test*Minio*.java</exclude>
                                 <exclude>**/TestIcebergGlueCatalogConnectorSmokeTest.java</exclude>
                                 <exclude>**/TestTrinoGlueCatalog.java</exclude>
                                 <exclude>**/TestSharedGlueMetastore.java</exclude>
@@ -546,8 +567,6 @@
                                 <exclude>**/TestIcebergGlueCatalogSkipArchive.java</exclude>
                                 <exclude>**/TestIcebergGcsConnectorSmokeTest.java</exclude>
                                 <exclude>**/TestIcebergAbfsConnectorSmokeTest.java</exclude>
-                                <exclude>io/trino/plugin/iceberg/catalog/jdbc/Test*.java</exclude>
-                                <exclude>io/trino/plugin/iceberg/catalog/rest/Test*.java</exclude>
                                 <exclude>**/Test*FailureRecoveryTest.java</exclude>
                             </excludes>
                         </configuration>
@@ -574,7 +593,7 @@
         </profile>
 
         <profile>
-            <id>additional-catalog-tests</id>
+            <id>minio-and-avro</id>
             <build>
                 <plugins>
                     <plugin>
@@ -582,8 +601,8 @@
                         <artifactId>maven-surefire-plugin</artifactId>
                         <configuration>
                             <includes>
-                                <include>**/io/trino/plugin/iceberg/catalog/jdbc/Test*.java</include>
-                                <include>**/io/trino/plugin/iceberg/catalog/rest/Test*.java</include>
+                                <include>**/Test*Avro*.java</include>
+                                <include>**/Test*Minio*.java</include>
                             </includes>
                         </configuration>
                     </plugin>

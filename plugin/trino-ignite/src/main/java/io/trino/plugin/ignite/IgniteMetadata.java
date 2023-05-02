@@ -120,7 +120,7 @@ public class IgniteMetadata
     {
         JdbcTableHandle handle = (JdbcTableHandle) table;
         return new ConnectorTableMetadata(
-                getSchemaTableName(handle),
+                handle.getRequiredNamedRelation().getSchemaTableName(),
                 getColumnMetadata(session, handle),
                 igniteClient.getTableProperties(session, handle));
     }
@@ -138,7 +138,7 @@ public class IgniteMetadata
     {
         JdbcTableHandle handle = (JdbcTableHandle) table;
         return new ConnectorTableSchema(
-                getSchemaTableName(handle),
+                handle.getRequiredNamedRelation().getSchemaTableName(),
                 getColumnMetadata(session, handle).stream()
                         .map(ColumnMetadata::getColumnSchema)
                         .collect(toImmutableList()));
@@ -174,6 +174,12 @@ public class IgniteMetadata
     @Override
     public void addColumn(ConnectorSession session, ConnectorTableHandle table, ColumnMetadata columnMetadata)
     {
-        throw new TrinoException(NOT_SUPPORTED, "This connector does not support adding columns");
+        if (!columnMetadata.isNullable()) {
+            // https://issues.apache.org/jira/browse/IGNITE-18829
+            // Add not null column to non-empty table Ignite doesn't give the default value
+            throw new TrinoException(NOT_SUPPORTED, "This connector does not support adding not null columns");
+        }
+        JdbcTableHandle handle = (JdbcTableHandle) table;
+        igniteClient.addColumn(session, handle, columnMetadata);
     }
 }

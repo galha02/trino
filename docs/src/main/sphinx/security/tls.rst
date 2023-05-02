@@ -101,7 +101,7 @@ typically runs with default HTTP configuration on the default port, 8080.
 
 When a load balancer accepts a TLS encrypted connection, it adds a
 `forwarded
-<https://developer.mozilla.org/en-US/docs/Web/HTTP/Proxy_servers_and_tunneling#forwarding_client_information_through_proxies>`_
+<https://developer.mozilla.org/docs/Web/HTTP/Proxy_servers_and_tunneling#forwarding_client_information_through_proxies>`_
 HTTP header to the request, such as ``X-Forwarded-Proto: https``.
 
 This tells the Trino coordinator to process the connection as if a TLS
@@ -165,6 +165,8 @@ Keys and certificates
 
 Trino can read certificates and private keys encoded in PEM encoded PKCS #1, PEM
 encoded PKCS #8, PKCS #12, and the legacy Java KeyStore (JKS) format.
+Certificates and private keys encoded in a binary format such as DER must be
+converted.
 
 Make sure you obtain a certificate that is validated by a recognized
 :ref:`certificate authority <glossCA>`.

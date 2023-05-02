@@ -13,20 +13,20 @@ Catalog
     the catalog connects to. For more information about catalogs, see
     :ref:`trino-concept-catalog`.
 
+.. _glossCert:
+
+Certificate
+    A public key `certificate
+    <https://wikipedia.org/wiki/Public_key_certificate>`_ issued by a :ref:`CA
+    <glossCA>`, sometimes abbreviated as cert, that verifies the ownership of a
+    server's private keys. Certificate format is specified in the `X.509
+    <https://wikipedia.org/wiki/X.509>`_ standard.
+
 .. _glossCA:
 
 Certificate Authority (CA)
     A trusted organization that signs and issues certificates. Its signatures
     can be used to verify the validity of :ref:`certificates <glossCert>`.
-
-.. _glossCert:
-
-Certificate
-    A public key `certificate
-    <https://en.wikipedia.org/wiki/Public_key_certificate>`_ issued by a
-    :ref:`CA <glossCA>`, sometimes abbreviated as cert, that verifies the
-    ownership of a server's private keys. Certificate format is specified in the
-    `X.509 <https://en.wikipedia.org/wiki/X.509>`_ standard.
 
 Cluster
     A Trino cluster provides the resources to run queries against numerous data
@@ -51,50 +51,50 @@ Container
     read about `containers <https://kubernetes.io/docs/concepts/containers/>`_
     in the Kubernetes documentation.
 
-.. _glossDataVirtualization:
-
-Data virtualization
-    `Data virtualization <https://en.wikipedia.org/wiki/Data_virtualization>`_
-    is a method of abstracting an interaction with multiple
-    :ref:`heterogeneous data sources <glossDataSource>`, without needing to know
-    the distributed nature of the data, its format, or any other technical
-    details involved in presenting the data.
-
 .. _glossDataSource:
 
 Data source
-    A system from which data is retrieved, for example, PostgreSQL or Iceberg on S3
-    data. In Trino, users query data sources with :ref:`catalogs <glossCatalog>`
-    that connect to each source. See :ref:`trino-concept-data-sources` for more
-    information.
+    A system from which data is retrieved, for example, PostgreSQL or Iceberg on
+    S3 data. In Trino, users query data sources with :ref:`catalogs
+    <glossCatalog>` that connect to each source. See
+    :ref:`trino-concept-data-sources` for more information.
+
+.. _glossDataVirtualization:
+
+Data virtualization
+    `Data virtualization <https://wikipedia.org/wiki/Data_virtualization>`_ is a
+    method of abstracting an interaction with multiple :ref:`heterogeneous data
+    sources <glossDataSource>`, without needing to know the distributed nature
+    of the data, its format, or any other technical details involved in
+    presenting the data.
 
 .. _glossGzip:
 
 gzip
-    `gzip <https://en.wikipedia.org/wiki/Gzip>`_ is a compression format and
+    `gzip <https://wikipedia.org/wiki/Gzip>`_ is a compression format and
     software that compresses and decompresses files. This format is used several
-    ways in Trino, including deployment and compressing files in
-    :ref:`object storage <glossObjectStorage>`. The most common extension for
-    gzip-compressed files is ``.gz``.
+    ways in Trino, including deployment and compressing files in :ref:`object
+    storage <glossObjectStorage>`. The most common extension for gzip-compressed
+    files is ``.gz``.
 
 .. _glossHDFS:
 
 HDFS
-    `Hadoop Distributed Filesystem (HDFS) <https://en.wikipedia.org/wiki/Apache_Hadoop#HDFS>`_
-    is a scalable :ref:`open source <glossOpenSource>` filesystem that was one
-    of the earliest distributed big data systems created to store large amounts
-    of data for the
-    `Hadoop ecosystem <https://en.wikipedia.org/wiki/Apache_Hadoop>`_.
+    `Hadoop Distributed Filesystem (HDFS)
+    <https://wikipedia.org/wiki/Apache_Hadoop#HDFS>`_ is a scalable :ref:`open
+    source <glossOpenSource>` filesystem that was one of the earliest
+    distributed big data systems created to store large amounts of data for the
+    `Hadoop ecosystem <https://wikipedia.org/wiki/Apache_Hadoop>`_.
 
 .. _glossJKS:
 
 Java KeyStore (JKS)
     The system of public key cryptography supported as one part of the Java
-    security APIs. The legacy JKS system recognizes keys and
-    :ref:`certificates <glossCert>` stored in *keystore* files, typically with
-    the ``.jks`` extension, and by default relies on a system-level list of
-    :ref:`CAs <glossCA>` in *truststore* files installed as part of the current
-    Java installation.
+    security APIs. The legacy JKS system recognizes keys and :ref:`certificates
+    <glossCert>` stored in *keystore* files, typically with the ``.jks``
+    extension, and by default relies on a system-level list of :ref:`CAs
+    <glossCA>` in *truststore* files installed as part of the current Java
+    installation.
 
 Key
     A cryptographic key specified as a pair of public and private strings
@@ -111,42 +111,27 @@ Load Balancer (LB)
 
 .. _glossObjectStorage:
 
-Object Storage
+Object storage
     `Object storage <https://en.wikipedia.org/wiki/Object_storage>`_ is a file
-    storage mechanism that stores data in a flat namespace, as opposed
-    to hierarchical filesystems. Files written in object storage are immutable,
-    meaning you cannot update a file but just overwrite or replace the entire
-    file. In the context of Trino, object storage commonly refers to
-    `cloud storage <https://en.wikipedia.org/wiki/Object_storage#Cloud_storage>`_
-    technologies such as `Amazon S3 <https://aws.amazon.com/s3>`_,
-    `Google Cloud Storage <https://cloud.google.com/storage>`_, and
-    `Azure Blob Storage <https://azure.microsoft.com/en-us/products/storage/blobs>`_.
-    In addition to cloud-hosted services, there are also local object storage
-    options such as `MinIO <https://min.io/>`_ and
-    `Ceph <https://docs.ceph.com>`_ that are compatible with S3. Object storage
-    became a popular replacement to :ref:`HDFS <glossHDFS>`.
+    storage mechanism. Examples of compatible object stores include the
+    following:
+
+    * `Amazon S3 <https://aws.amazon.com/s3>`_
+    * `Google Cloud Storage <https://cloud.google.com/storage>`_
+    * `Azure Blob Storage <https://azure.microsoft.com/en-us/products/storage/blobs>`_
+    * `MinIO <https://min.io/>`_ and other S3-compatible stores
+    * :ref:`HDFS <glossHDFS>`
 
 .. _glossOpenSource:
 
 Open-source
-    Typically refers to
-    `open-source software <https://en.wikipedia.org/wiki/Open-source_software>`_.
-    which is software that has the source code made available for others to see,
-    use, and contribute to. Allowed usage varies depending on the license that
-    the software is licensed under. Trino is licensed under the
-    `Apache license <https://en.wikipedia.org/wiki/Apache_License>`_, and is
-    therefore maintained by a community of contributors from all across the
-    globe.
-
-.. _glossPlugin:
-
-Plugin
-    A bundle of code implementing the Trino
-    :doc:`Service Provider Interface (SPI) </develop/spi-overview>` that is used
-    to add new :ref:`connectors <glossConnector>`,
-    :doc:`data types </develop/types>`, :doc:`functions`,
-    :doc:`access control implementations </develop/system-access-control>`, and
-    other features of Trino.
+    Typically refers to `open-source software
+    <https://wikipedia.org/wiki/Open-source_software>`_. which is software that
+    has the source code made available for others to see, use, and contribute
+    to. Allowed usage varies depending on the license that the software is
+    licensed under. Trino is licensed under the `Apache license
+    <https://wikipedia.org/wiki/Apache_License>`_, and is therefore maintained
+    by a community of contributors from all across the globe.
 
 .. _glossPEM:
 
@@ -160,15 +145,25 @@ PEM file format
 
 PKCS #12
     A binary archive used to store keys and certificates or certificate chains
-    that validate a key. `PKCS #12 <https://en.wikipedia.org/wiki/PKCS_12>`_
-    files have ``.p12`` or ``.pfx`` extensions. This format is a less popular
+    that validate a key. `PKCS #12 <https://wikipedia.org/wiki/PKCS_12>`_ files
+    have ``.p12`` or ``.pfx`` extensions. This format is a less popular
     alternative to :ref:`PEM <glossPEM>`.
+
+.. _glossPlugin:
+
+Plugin
+    A bundle of code implementing the Trino :doc:`Service Provider Interface
+    (SPI) </develop/spi-overview>` that is used to add new :ref:`connectors
+    <glossConnector>`, :doc:`data types </develop/types>`, :doc:`functions`,
+    :doc:`access control implementations </develop/system-access-control>`, and
+    other features of Trino.
 
 Presto and PrestoSQL
     The old name for Trino. To learn more about the name change to Trino, read
-    `the history <https://en.wikipedia.org/wiki/Trino_(SQL_query_engine)#History>`_.
+    `the history
+    <https://wikipedia.org/wiki/Trino_(SQL_query_engine)#History>`_.
 
-Query Federation
+Query federation
   A type of :ref:`data virtualization <glossDataVirtualization>` that provides a
   common access point and data model across two or more heterogeneous data
   sources. A popular data model used by many query federation engines is
@@ -187,17 +182,17 @@ Structured Query Language (SQL)
     see :doc:`SQL </language>`.
 
 Tarball
-    A common abbreviation for
-    `TAR file <https://en.wikipedia.org/wiki/Tar_(computing)>`_, which is a
-    common software distribution mechanism. This file format is a collection of
-    multiple files distributed as a single file, commonly compressed using
-    :ref:`gzip <glossGzip>` compression.
+    A common abbreviation for `TAR file
+    <https://wikipedia.org/wiki/Tar_(computing)>`_, which is a common software
+    distribution mechanism. This file format is a collection of multiple files
+    distributed as a single file, commonly compressed using :ref:`gzip
+    <glossGzip>` compression.
 
 .. _glossTLS:
 
 Transport Layer Security (TLS)
-    `TLS <https://en.wikipedia.org/wiki/Transport_Layer_Security>`_ is a
-    security protocol designed to provide secure communications over a network.
-    It is the successor to :ref:`SSL <glossSSL>`, and used in many applications
-    like HTTPS, email, and Trino. These security topics use the term TLS to
-    refer to both TLS and SSL.
+    `TLS <https://wikipedia.org/wiki/Transport_Layer_Security>`_ is a security
+    protocol designed to provide secure communications over a network. It is the
+    successor to :ref:`SSL <glossSSL>`, and used in many applications like
+    HTTPS, email, and Trino. These security topics use the term TLS to refer to
+    both TLS and SSL.

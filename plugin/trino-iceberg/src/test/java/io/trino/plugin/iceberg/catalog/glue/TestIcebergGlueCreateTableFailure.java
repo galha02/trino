@@ -23,8 +23,10 @@ import io.trino.filesystem.FileEntry;
 import io.trino.filesystem.FileIterator;
 import io.trino.filesystem.TrinoFileSystem;
 import io.trino.filesystem.hdfs.HdfsFileSystemFactory;
+import io.trino.metadata.InternalFunctionBundle;
 import io.trino.plugin.hive.metastore.Database;
 import io.trino.plugin.hive.metastore.glue.GlueHiveMetastore;
+import io.trino.plugin.iceberg.IcebergPlugin;
 import io.trino.plugin.iceberg.TestingIcebergConnectorFactory;
 import io.trino.spi.security.PrincipalType;
 import io.trino.testing.AbstractTestQueryFramework;
@@ -33,7 +35,6 @@ import io.trino.testing.TestingConnectorSession;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.Test;
 
-import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -95,6 +96,10 @@ public class TestIcebergGlueCreateTableFailure
             return result;
         });
 
+        InternalFunctionBundle.InternalFunctionBundleBuilder functions = InternalFunctionBundle.builder();
+        new IcebergPlugin().getFunctions().forEach(functions::functions);
+        queryRunner.addFunctions(functions.build());
+
         queryRunner.createCatalog(
                 ICEBERG_CATALOG,
                 new TestingIcebergConnectorFactory(Optional.of(new TestingIcebergGlueCatalogModule(awsGlueAsyncAdapterProvider)), Optional.empty(), EMPTY_MODULE),
@@ -103,7 +108,7 @@ public class TestIcebergGlueCreateTableFailure
         dataDirectory = Files.createTempDirectory("test_iceberg_create_table_failure");
         dataDirectory.toFile().deleteOnExit();
 
-        glueHiveMetastore = createTestingGlueHiveMetastore(dataDirectory.toString());
+        glueHiveMetastore = createTestingGlueHiveMetastore(dataDirectory);
         fileSystem = new HdfsFileSystemFactory(HDFS_ENVIRONMENT).create(TestingConnectorSession.SESSION);
 
         Database database = Database.builder()
@@ -119,7 +124,6 @@ public class TestIcebergGlueCreateTableFailure
 
     @AfterClass(alwaysRun = true)
     public void cleanup()
-            throws IOException
     {
         try {
             if (glueHiveMetastore != null) {
@@ -170,8 +174,8 @@ public class TestIcebergGlueCreateTableFailure
         boolean metadataFileFound = false;
         while (fileIterator.hasNext()) {
             FileEntry fileEntry = fileIterator.next();
-            String path = fileEntry.path();
-            if (path.startsWith(tableLocationPrefix) && path.endsWith(".metadata.json")) {
+            String location = fileEntry.location();
+            if (location.startsWith(tableLocationPrefix) && location.endsWith(".metadata.json")) {
                 metadataFileFound = true;
                 break;
             }

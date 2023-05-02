@@ -5,7 +5,7 @@
     <parent>
         <groupId>io.trino</groupId>
         <artifactId>trino-root</artifactId>
-        <version>409-SNAPSHOT</version>
+        <version>416-SNAPSHOT</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
@@ -34,6 +34,16 @@
         <dependency>
             <groupId>io.trino</groupId>
             <artifactId>trino-client</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.squareup.okhttp3</groupId>
+                    <artifactId>okhttp</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.squareup.okhttp3</groupId>
+                    <artifactId>okhttp-urlconnection</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>
@@ -183,6 +193,11 @@
 
         <dependency>
             <groupId>io.airlift</groupId>
+            <artifactId>tracing</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.airlift</groupId>
             <artifactId>units</artifactId>
         </dependency>
 
@@ -259,7 +274,6 @@
         <dependency>
             <groupId>commons-codec</groupId>
             <artifactId>commons-codec</artifactId>
-            <version>1.15</version>
         </dependency>
 
         <dependency>
@@ -280,6 +294,16 @@
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-jackson</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-api</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-context</artifactId>
         </dependency>
 
         <dependency>
@@ -339,11 +363,6 @@
         </dependency>
 
         <dependency>
-            <groupId>org.openjdk.jol</groupId>
-            <artifactId>jol-core</artifactId>
-        </dependency>
-
-        <dependency>
             <groupId>org.ow2.asm</groupId>
             <artifactId>asm</artifactId>
         </dependency>
@@ -371,15 +390,8 @@
         </dependency>
 
         <dependency>
-            <groupId>com.squareup.okhttp3</groupId>
-            <artifactId>okhttp-urlconnection</artifactId>
-            <scope>runtime</scope>
-        </dependency>
-
-        <dependency>
             <groupId>net.java.dev.jna</groupId>
             <artifactId>jna-platform</artifactId>
-            <version>5.12.1</version>
             <scope>runtime</scope>
         </dependency>
 
@@ -455,6 +467,12 @@
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>okhttp-urlconnection</artifactId>
             <scope>test</scope>
         </dependency>
 

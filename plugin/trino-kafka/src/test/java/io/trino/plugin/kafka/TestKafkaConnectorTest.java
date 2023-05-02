@@ -60,7 +60,6 @@ import static io.trino.spi.type.VarcharType.createVarcharType;
 import static io.trino.testing.DataProviders.toDataProvider;
 import static io.trino.testing.TestingConnectorBehavior.SUPPORTS_CREATE_TABLE_WITH_DATA;
 import static io.trino.testing.TestingNames.randomNameSuffix;
-import static io.trino.testing.assertions.Assert.assertEquals;
 import static java.lang.String.format;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
@@ -71,6 +70,7 @@ import static org.apache.kafka.clients.producer.ProducerConfig.KEY_SERIALIZER_CL
 import static org.apache.kafka.clients.producer.ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 
 public class TestKafkaConnectorTest
@@ -168,6 +168,11 @@ public class TestKafkaConnectorTest
     protected boolean hasBehavior(TestingConnectorBehavior connectorBehavior)
     {
         switch (connectorBehavior) {
+            case SUPPORTS_DELETE:
+            case SUPPORTS_UPDATE:
+            case SUPPORTS_MERGE:
+                return false;
+
             case SUPPORTS_TOPN_PUSHDOWN:
                 return false;
 
@@ -185,6 +190,10 @@ public class TestKafkaConnectorTest
 
             case SUPPORTS_COMMENT_ON_TABLE:
             case SUPPORTS_COMMENT_ON_COLUMN:
+                return false;
+
+            case SUPPORTS_CREATE_VIEW:
+            case SUPPORTS_CREATE_MATERIALIZED_VIEW:
                 return false;
 
             default:

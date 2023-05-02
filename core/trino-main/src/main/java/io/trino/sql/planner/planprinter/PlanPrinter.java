@@ -446,6 +446,11 @@ public class PlanPrinter
         TypeProvider typeProvider = getTypeProvider(allFragments);
 
         builder.append(format("Trino version: %s\n", version));
+        builder.append(format("Queued: %s, Analysis: %s, Planning: %s, Execution: %s\n",
+                queryStats.getQueuedTime().convertToMostSuccinctTimeUnit(),
+                queryStats.getAnalysisTime().convertToMostSuccinctTimeUnit(),
+                queryStats.getPlanningTime().convertToMostSuccinctTimeUnit(),
+                queryStats.getExecutionTime().convertToMostSuccinctTimeUnit()));
 
         for (StageInfo stageInfo : allStages) {
             builder.append(formatFragment(
@@ -1857,7 +1862,7 @@ public class PlanPrinter
             }
             else {
                 descriptor = argument.getDescriptor().orElseThrow().getFields().stream()
-                        .map(field -> anonymizer.anonymizeColumn(field.getName()) + field.getType().map(type -> " " + type.getDisplayName()).orElse(""))
+                        .map(field -> anonymizer.anonymizeColumn(field.getName().orElseThrow()) + field.getType().map(type -> " " + type.getDisplayName()).orElse(""))
                         .collect(joining(", ", "(", ")"));
             }
             return format("%s => DescriptorArgument{%s}", argumentName, descriptor);

@@ -15,10 +15,12 @@ package io.trino.sql.planner;
 
 import io.airlift.configuration.Config;
 import io.airlift.configuration.ConfigDescription;
+import io.airlift.configuration.DefunctConfig;
 import io.airlift.configuration.LegacyConfig;
 import io.airlift.units.DataSize;
 import io.airlift.units.Duration;
 
+import javax.annotation.Nullable;
 import javax.validation.constraints.Max;
 import javax.validation.constraints.Min;
 import javax.validation.constraints.NotNull;
@@ -28,6 +30,7 @@ import static io.airlift.units.DataSize.Unit.MEGABYTE;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MINUTES;
 
+@DefunctConfig({"adaptive-partial-aggregation.min-rows", "preferred-write-partitioning-min-number-of-partitions"})
 public class OptimizerConfig
 {
     private double cpuCostWeight = 75;
@@ -49,13 +52,11 @@ public class OptimizerConfig
     private double filterConjunctionIndependenceFactor = 0.75;
     private boolean nonEstimatablePredicateApproximationEnabled = true;
 
-    private boolean colocatedJoinsEnabled;
-    private boolean distributedIndexJoinsEnabled;
+    private boolean colocatedJoinsEnabled = true;
     private boolean spatialJoinsEnabled = true;
     private boolean distributedSort = true;
 
     private boolean usePreferredWritePartitioning = true;
-    private int preferredWritePartitioningMinNumberOfPartitions = 50;
 
     private Duration iterativeOptimizerTimeout = new Duration(3, MINUTES); // by default let optimizer wait a long time in case it retrieves some data from ConnectorMetadata
 
@@ -63,11 +64,14 @@ public class OptimizerConfig
     private boolean optimizeHashGeneration = true;
     private boolean pushTableWriteThroughUnion = true;
     private boolean dictionaryAggregation;
-    private boolean useMarkDistinct = true;
+    @Nullable
+    private Boolean useMarkDistinct;
+    @Nullable
+    private MarkDistinctStrategy markDistinctStrategy;
     private boolean preferPartialAggregation = true;
     private boolean pushAggregationThroughOuterJoin = true;
     private boolean enableIntermediateAggregations;
-    private boolean pushPartialAggregationThoughJoin;
+    private boolean pushPartialAggregationThroughJoin;
     private boolean preAggregateCaseAggregationsEnabled = true;
     private boolean optimizeMixedDistinctAggregations;
     private boolean enableForcedExchangeBelowGroupId = true;
@@ -84,9 +88,9 @@ public class OptimizerConfig
     private boolean mergeProjectWithValues = true;
     private boolean forceSingleNodeOutput;
     private boolean useExactPartitioning;
+    private boolean useCostBasedPartitioning = true;
     // adaptive partial aggregation
     private boolean adaptivePartialAggregationEnabled = true;
-    private long adaptivePartialAggregationMinRows = 100_000;
     private double adaptivePartialAggregationUniqueRowsRatioThreshold = 0.8;
     private long joinPartitionedBuildMinRowCount = 1_000_000L;
     private DataSize minInputSizePerTask = DataSize.of(5, GIGABYTE);
@@ -114,6 +118,13 @@ public class OptimizerConfig
         {
             return this == BROADCAST || this == AUTOMATIC;
         }
+    }
+
+    public enum MarkDistinctStrategy
+    {
+        NONE,
+        ALWAYS,
+        AUTOMATIC,
     }
 
     public double getCpuCostWeight()
@@ -317,22 +328,10 @@ public class OptimizerConfig
     }
 
     @Config("colocated-joins-enabled")
-    @ConfigDescription("Experimental: Use a colocated join when possible")
+    @ConfigDescription("Use a colocated join when possible")
     public OptimizerConfig setColocatedJoinsEnabled(boolean colocatedJoinsEnabled)
     {
         this.colocatedJoinsEnabled = colocatedJoinsEnabled;
-        return this;
-    }
-
-    public boolean isDistributedIndexJoinsEnabled()
-    {
-        return distributedIndexJoinsEnabled;
-    }
-
-    @Config("distributed-index-joins-enabled")
-    public OptimizerConfig setDistributedIndexJoinsEnabled(boolean distributedIndexJoinsEnabled)
-    {
-        this.distributedIndexJoinsEnabled = distributedIndexJoinsEnabled;
         return this;
     }
 
@@ -370,20 +369,6 @@ public class OptimizerConfig
     public OptimizerConfig setUsePreferredWritePartitioning(boolean usePreferredWritePartitioning)
     {
         this.usePreferredWritePartitioning = usePreferredWritePartitioning;
-        return this;
-    }
-
-    @Min(1)
-    public int getPreferredWritePartitioningMinNumberOfPartitions()
-    {
-        return preferredWritePartitioningMinNumberOfPartitions;
-    }
-
-    @Config("preferred-write-partitioning-min-number-of-partitions")
-    @ConfigDescription("Use preferred write partitioning when the number of written partitions exceeds the configured threshold")
-    public OptimizerConfig setPreferredWritePartitioningMinNumberOfPartitions(int preferredWritePartitioningMinNumberOfPartitions)
-    {
-        this.preferredWritePartitioningMinNumberOfPartitions = preferredWritePartitioningMinNumberOfPartitions;
         return this;
     }
 
@@ -437,15 +422,15 @@ public class OptimizerConfig
         return this;
     }
 
-    public boolean isPushPartialAggregationThoughJoin()
+    public boolean isPushPartialAggregationThroughJoin()
     {
-        return pushPartialAggregationThoughJoin;
+        return pushPartialAggregationThroughJoin;
     }
 
     @Config("optimizer.push-partial-aggregation-through-join")
-    public OptimizerConfig setPushPartialAggregationThoughJoin(boolean pushPartialAggregationThoughJoin)
+    public OptimizerConfig setPushPartialAggregationThroughJoin(boolean pushPartialAggregationThroughJoin)
     {
-        this.pushPartialAggregationThoughJoin = pushPartialAggregationThoughJoin;
+        this.pushPartialAggregationThroughJoin = pushPartialAggregationThroughJoin;
         return this;
     }
 
@@ -474,15 +459,32 @@ public class OptimizerConfig
         return this;
     }
 
-    public boolean isUseMarkDistinct()
+    @Deprecated
+    @Nullable
+    public Boolean isUseMarkDistinct()
     {
         return useMarkDistinct;
     }
 
-    @Config("optimizer.use-mark-distinct")
-    public OptimizerConfig setUseMarkDistinct(boolean value)
+    @Deprecated
+    @LegacyConfig(value = "optimizer.use-mark-distinct", replacedBy = "optimizer.mark-distinct-strategy")
+    public OptimizerConfig setUseMarkDistinct(Boolean value)
     {
         this.useMarkDistinct = value;
+        return this;
+    }
+
+    @Nullable
+    public MarkDistinctStrategy getMarkDistinctStrategy()
+    {
+        return markDistinctStrategy;
+    }
+
+    @Config("optimizer.mark-distinct-strategy")
+    @ConfigDescription("Strategy to use for distinct aggregations")
+    public OptimizerConfig setMarkDistinctStrategy(MarkDistinctStrategy markDistinctStrategy)
+    {
+        this.markDistinctStrategy = markDistinctStrategy;
         return this;
     }
 
@@ -707,19 +709,6 @@ public class OptimizerConfig
         return this;
     }
 
-    public long getAdaptivePartialAggregationMinRows()
-    {
-        return adaptivePartialAggregationMinRows;
-    }
-
-    @Config("adaptive-partial-aggregation.min-rows")
-    @ConfigDescription("Minimum number of processed rows before partial aggregation might be adaptively turned off")
-    public OptimizerConfig setAdaptivePartialAggregationMinRows(long adaptivePartialAggregationMinRows)
-    {
-        this.adaptivePartialAggregationMinRows = adaptivePartialAggregationMinRows;
-        return this;
-    }
-
     public double getAdaptivePartialAggregationUniqueRowsRatioThreshold()
     {
         return adaptivePartialAggregationUniqueRowsRatioThreshold;
@@ -785,6 +774,19 @@ public class OptimizerConfig
     public OptimizerConfig setUseExactPartitioning(boolean useExactPartitioning)
     {
         this.useExactPartitioning = useExactPartitioning;
+        return this;
+    }
+
+    public boolean isUseCostBasedPartitioning()
+    {
+        return useCostBasedPartitioning;
+    }
+
+    @Config("optimizer.use-cost-based-partitioning")
+    @ConfigDescription("When enabled the cost based optimizer is used to determine if repartitioning the output of an already partitioned stage is necessary")
+    public OptimizerConfig setUseCostBasedPartitioning(boolean useCostBasedPartitioning)
+    {
+        this.useCostBasedPartitioning = useCostBasedPartitioning;
         return this;
     }
 }

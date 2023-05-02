@@ -37,8 +37,8 @@ import static io.trino.spi.type.BigintType.BIGINT;
 import static io.trino.spi.type.BooleanType.BOOLEAN;
 import static io.trino.spi.type.DoubleType.DOUBLE;
 import static io.trino.testing.TestingConnectorSession.SESSION;
-import static io.trino.testing.assertions.Assert.assertEquals;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
 
 public class TestIgniteClient
@@ -93,7 +93,7 @@ public class TestIgniteClient
         testImplementAggregation(
                 new AggregateFunction("count", BIGINT, List.of(bigintVariable), List.of(), true, Optional.empty()),
                 Map.of(bigintVariable.getName(), BIGINT_COLUMN),
-                Optional.empty());
+                Optional.of("count(DISTINCT `c_bigint`)"));
 
         // count() FILTER (WHERE ...)
         testImplementAggregation(
@@ -131,7 +131,13 @@ public class TestIgniteClient
         testImplementAggregation(
                 new AggregateFunction("sum", BIGINT, List.of(bigintVariable), List.of(), true, Optional.empty()),
                 Map.of(bigintVariable.getName(), BIGINT_COLUMN),
-                Optional.empty());  // distinct not supported
+                Optional.of("sum(DISTINCT `c_bigint`)"));
+
+        // sum(DISTINCT double)
+        testImplementAggregation(
+                new AggregateFunction("sum", DOUBLE, List.of(doubleVariable), List.of(), true, Optional.empty()),
+                Map.of(doubleVariable.getName(), DOUBLE_COLUMN),
+                Optional.of("sum(DISTINCT `c_double`)"));
 
         // sum(bigint) FILTER (WHERE ...)
         testImplementAggregation(

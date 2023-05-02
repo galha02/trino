@@ -23,7 +23,6 @@ import io.trino.plugin.deltalake.transactionlog.MetadataEntry;
 import io.trino.plugin.deltalake.transactionlog.ProtocolEntry;
 import io.trino.plugin.deltalake.transactionlog.RemoveFileEntry;
 import io.trino.spi.connector.ConnectorSession;
-import org.apache.hadoop.fs.Path;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -96,9 +95,9 @@ public class TransactionLogWriter
     {
         checkState(commitInfoEntry.isPresent(), "commitInfo not set");
 
-        Path transactionLogLocation = getTransactionLogDir(new Path(tableLocation));
+        String transactionLogLocation = getTransactionLogDir(tableLocation);
         CommitInfoEntry commitInfo = requireNonNull(commitInfoEntry.get().getCommitInfo(), "commitInfoEntry.get().getCommitInfo() is null");
-        Path logEntry = getTransactionLogJsonEntryPath(transactionLogLocation, commitInfo.getVersion());
+        String logEntry = getTransactionLogJsonEntryPath(transactionLogLocation, commitInfo.getVersion());
 
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         writeEntry(bos, commitInfoEntry.get());

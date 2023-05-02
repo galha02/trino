@@ -122,6 +122,7 @@ public class TestAccessControl
             throws Exception
     {
         Session session = testSessionBuilder()
+                .setSource("test")
                 .setCatalog("blackhole")
                 .setSchema("default")
                 .build();
@@ -519,6 +520,15 @@ public class TestAccessControl
         TestingPrivilege denyNonReverseFunctionCalls = new TestingPrivilege(Optional.empty(), name -> !name.equals("reverse"), EXECUTE_FUNCTION);
         assertAccessAllowed("SELECT reverse('a')", denyNonReverseFunctionCalls);
         assertAccessDenied("SELECT concat('a', 'b')", "Cannot execute function concat", denyNonReverseFunctionCalls);
+    }
+
+    @Test
+    public void testTableFunctionRequiredColumns()
+    {
+        assertAccessDenied(
+                "SELECT * FROM TABLE(exclude_columns(TABLE(nation), descriptor(regionkey, comment)))",
+                "Cannot select from columns \\[nationkey, name] in table .*.nation.*",
+                privilege("nation.nationkey", SELECT_COLUMN));
     }
 
     @Test
@@ -969,7 +979,7 @@ public class TestAccessControl
                 new QualifiedObjectName("blackhole", "default", "orders"),
                 "comment",
                 getSession().getUser(),
-                new ViewExpression(getSession().getUser(), Optional.empty(), Optional.empty(), "substr(comment,1,3)"));
+                new ViewExpression(Optional.empty(), Optional.empty(), Optional.empty(), "substr(comment,1,3)"));
 
         assertAccessAllowed("SELECT comment FROM orders");
     }
@@ -983,9 +993,52 @@ public class TestAccessControl
         accessControlManager.rowFilter(
                 new QualifiedObjectName("blackhole", "default", "nation"),
                 getSession().getUser(),
-                new ViewExpression(getSession().getUser(), Optional.empty(), Optional.empty(), "nationkey % 2 = 0"));
+                new ViewExpression(Optional.empty(), Optional.empty(), Optional.empty(), "nationkey % 2 = 0"));
 
         assertAccessAllowed("SELECT nationkey FROM nation");
+    }
+
+    @Test
+    public void testAccessControlWithRolesAndColumnMask()
+    {
+        String role = "role";
+        String user = "user";
+        Session session = Session.builder(getSession())
+                .setIdentity(Identity.forUser(user)
+                        .withEnabledRoles(ImmutableSet.of(role))
+                        .build())
+                .build();
+        systemSecurityMetadata.grantRoles(getSession(), Set.of(role), Set.of(new TrinoPrincipal(USER, user)), false, Optional.empty());
+        TestingAccessControlManager accessControlManager = getQueryRunner().getAccessControl();
+        accessControlManager.denyIdentityTable((identity, table) -> (identity.getEnabledRoles().contains(role) && "orders".equals(table)));
+        accessControlManager.columnMask(
+                new QualifiedObjectName("blackhole", "default", "orders"),
+                "comment",
+                getSession().getUser(),
+                new ViewExpression(Optional.empty(), Optional.empty(), Optional.empty(), "substr(comment,1,3)"));
+
+        assertAccessAllowed(session, "SELECT comment FROM orders");
+    }
+
+    @Test
+    public void testAccessControlWithRolesAndRowFilter()
+    {
+        String role = "role";
+        String user = "user";
+        Session session = Session.builder(getSession())
+                .setIdentity(Identity.forUser(user)
+                        .withEnabledRoles(ImmutableSet.of(role))
+                        .build())
+                .build();
+        systemSecurityMetadata.grantRoles(getSession(), Set.of(role), Set.of(new TrinoPrincipal(USER, user)), false, Optional.empty());
+        TestingAccessControlManager accessControlManager = getQueryRunner().getAccessControl();
+        accessControlManager.denyIdentityTable((identity, table) -> (identity.getEnabledRoles().contains(role) && "nation".equals(table)));
+        accessControlManager.rowFilter(
+                new QualifiedObjectName("blackhole", "default", "nation"),
+                getSession().getUser(),
+                new ViewExpression(Optional.empty(), Optional.empty(), Optional.empty(), "nationkey % 2 = 0"));
+
+        assertAccessAllowed(session, "SELECT nationkey FROM nation");
     }
 
     private static final class DenySetPropertiesSystemAccessControl

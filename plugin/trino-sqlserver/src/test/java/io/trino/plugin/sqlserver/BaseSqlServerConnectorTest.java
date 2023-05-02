@@ -18,7 +18,9 @@ import com.google.common.collect.ImmutableMap;
 import io.trino.Session;
 import io.trino.plugin.jdbc.BaseJdbcConnectorTest;
 import io.trino.plugin.jdbc.JdbcTableHandle;
+import io.trino.plugin.jdbc.TestProcedure;
 import io.trino.spi.predicate.TupleDomain;
+import io.trino.sql.planner.plan.AggregationNode;
 import io.trino.sql.planner.plan.FilterNode;
 import io.trino.testing.TestingConnectorBehavior;
 import io.trino.testing.sql.TestTable;
@@ -52,16 +54,20 @@ public abstract class BaseSqlServerConnectorTest
     protected boolean hasBehavior(TestingConnectorBehavior connectorBehavior)
     {
         switch (connectorBehavior) {
+            case SUPPORTS_JOIN_PUSHDOWN_WITH_VARCHAR_EQUALITY:
             case SUPPORTS_PREDICATE_PUSHDOWN_WITH_VARCHAR_EQUALITY:
                 return true;
-            case SUPPORTS_JOIN_PUSHDOWN_WITH_VARCHAR_EQUALITY:
             case SUPPORTS_PREDICATE_PUSHDOWN_WITH_VARCHAR_INEQUALITY:
                 return false;
 
             case SUPPORTS_PREDICATE_EXPRESSION_PUSHDOWN:
-            case SUPPORTS_AGGREGATION_PUSHDOWN_STDDEV:
-            case SUPPORTS_AGGREGATION_PUSHDOWN_VARIANCE:
                 return true;
+
+            case SUPPORTS_AGGREGATION_PUSHDOWN_COVARIANCE:
+            case SUPPORTS_AGGREGATION_PUSHDOWN_CORRELATION:
+            case SUPPORTS_AGGREGATION_PUSHDOWN_REGRESSION:
+            case SUPPORTS_AGGREGATION_PUSHDOWN_COUNT_DISTINCT:
+                return false;
 
             case SUPPORTS_JOIN_PUSHDOWN:
                 return true;
@@ -161,14 +167,6 @@ public abstract class BaseSqlServerConnectorTest
         }
         catch (Exception expected) {
             // The test failure is not guaranteed
-            // TODO (https://github.com/trinodb/trino/issues/10846): shouldn't fail
-            if (expected.getMessage().contains("case sensitivity")) {
-                // this could fail on step before - during read case sensitivity information
-                assertThat(expected)
-                        // before get columns from database metadata, for SqlServer we first try to get case sensitivity
-                        .hasMessageMatching(".*Failed to get case sensitivity for columns. Invalid object name.*");
-                throw new SkipException("to be fixed");
-            }
             assertThat(expected)
                     .hasMessageMatching("(?s).*(" +
                             "No task completed before timeout|" +
@@ -351,9 +349,9 @@ public abstract class BaseSqlServerConnectorTest
             assertThat(query(joinPushdownEnabled, "SELECT c.name, n.name FROM customer c JOIN nation n ON c.custkey = n.nationkey WHERE n.name = 'POLAND'"))
                     .isFullyPushedDown();
 
-            // join on varchar columns is not pushed down
-            assertThat(query(joinPushdownEnabled, "SELECT c.name, n.name FROM customer c JOIN nation n ON c.address = n.name"))
-                    .joinIsNotFullyPushedDown();
+            // join on varchar columns
+            assertThat(query(joinPushdownEnabled, "SELECT n.name, n2.regionkey FROM nation n JOIN nation n2 ON n.name = n2.name"))
+                    .isFullyPushedDown();
         }
     }
 
@@ -382,6 +380,36 @@ public abstract class BaseSqlServerConnectorTest
                     .matches("VALUES " +
                             "(CAST('collation' AS varchar(25)))")
                     .isNotFullyPushedDown(FilterNode.class);
+        }
+    }
+
+    @Test
+    public void testNoJoinPushdownOnCaseInsensitiveVarcharColumn()
+    {
+        // if collation on column is caseinsensitive we should not apply join pushdown
+        try (TestTable testTable = new TestTable(
+                onRemoteDatabase(),
+                "test_join_collate",
+                "(collate_column_1 varchar(25) COLLATE Latin1_General_CI_AS, collate_column_2 varchar(25) COLLATE Latin1_General_CI_AS)",
+                List.of("'Collation', 'Collation'", "'collation', 'collation'"))) {
+            assertThat(query(format("SELECT n.collate_column_1, n2.collate_column_2 FROM %1$s n JOIN %1$s n2 ON n.collate_column_1 = n2.collate_column_2", testTable.getName())))
+                    .matches("VALUES " +
+                            "((CAST('Collation' AS varchar(25))), (CAST('Collation' AS varchar(25)))), " +
+                            "((CAST('collation' AS varchar(25))), (CAST('collation' AS varchar(25))))")
+                    .joinIsNotFullyPushedDown();
+            assertThat(query(format("SELECT n.collate_column_1, n2.collate_column_2 FROM %1$s n JOIN %1$s n2 ON n.collate_column_1 != n2.collate_column_2", testTable.getName())))
+                    .matches("VALUES " +
+                            "((CAST('collation' AS varchar(25))), (CAST('Collation' AS varchar(25)))), " +
+                            "((CAST('Collation' AS varchar(25))), (CAST('collation' AS varchar(25))))")
+                    .joinIsNotFullyPushedDown();
+            assertThat(query(format("SELECT n.collate_column_1, n2.collate_column_2 FROM %1$s n JOIN %1$s n2 ON n.collate_column_1 = n2.collate_column_2 WHERE n.collate_column_1 = 'Collation'", testTable.getName())))
+                    .matches("VALUES " +
+                            "((CAST('Collation' AS varchar(25))), (CAST('Collation' AS varchar(25))))")
+                    .joinIsNotFullyPushedDown();
+            assertThat(query(format("SELECT n.collate_column_1, n2.collate_column_2 FROM %1$s n JOIN %1$s n2 ON n.collate_column_1 != n2.collate_column_2 WHERE n.collate_column_1 != 'collation'", testTable.getName())))
+                    .matches("VALUES " +
+                            "((CAST('Collation' AS varchar(25))), (CAST('collation' AS varchar(25))))")
+                    .joinIsNotFullyPushedDown();
         }
     }
 
@@ -638,6 +666,229 @@ public abstract class BaseSqlServerConnectorTest
     protected void verifyColumnNameLengthFailurePermissible(Throwable e)
     {
         assertThat(e).hasMessageMatching("Column name must be shorter than or equal to '128' characters but got '129': '.*'");
+    }
+
+    @Test
+    public void testSelectFromProcedureFunction()
+    {
+        try (TestProcedure testProcedure = createTestingProcedure("SELECT * FROM nation WHERE nationkey = 1")) {
+            assertQuery(
+                    format("SELECT name FROM TABLE(system.procedure(query => 'EXECUTE %s.%s'))".formatted(getSession().getSchema().orElseThrow(), testProcedure.getName()), getSession().getSchema().orElseThrow()),
+                    "VALUES 'ARGENTINA'");
+        }
+    }
+
+    @Test
+    public void testSelectFromProcedureFunctionWithInputParameter()
+    {
+        try (TestProcedure testProcedure = createTestingProcedure(
+                "@nationkey bigint, @name varchar(30)",
+                "SELECT * FROM nation WHERE nationkey = @nationkey AND name = @name")) {
+            assertQuery(
+                    "SELECT nationkey, name FROM TABLE(system.procedure(query => 'EXECUTE %s.%s 0, ''ALGERIA''')) ".formatted(getSession().getSchema().orElseThrow(), testProcedure.getName()),
+                    "VALUES (0, 'ALGERIA')");
+        }
+    }
+
+    @Test
+    public void testSelectFromProcedureFunctionWithOutputParameter()
+    {
+        try (TestProcedure testProcedure = createTestingProcedure("@row_count bigint OUTPUT", "SELECT * FROM nation; SELECT @row_count = @@ROWCOUNT")) {
+            assertQueryFails(
+                    "SELECT name FROM TABLE(system.procedure(query => 'EXECUTE %s.%s')) ".formatted(getSession().getSchema().orElseThrow(), testProcedure.getName()),
+                    "Failed to get table handle for procedure query\\. Procedure or function '.*' expects parameter '@row_count', which was not supplied\\.");
+        }
+    }
+
+    @Test
+    public void testFilterPushdownRestrictedForProcedureFunction()
+    {
+        try (TestProcedure testProcedure = createTestingProcedure("SELECT * FROM nation")) {
+            assertThat(query("SELECT name FROM TABLE(system.procedure(query => 'EXECUTE %s.%s')) WHERE nationkey = 0".formatted(getSession().getSchema().orElseThrow(), testProcedure.getName())))
+                    .isNotFullyPushedDown(FilterNode.class)
+                    .skippingTypesCheck()
+                    .matches("VALUES 'ALGERIA'");
+        }
+    }
+
+    @Test
+    public void testAggregationPushdownRestrictedForProcedureFunction()
+    {
+        try (TestProcedure testProcedure = createTestingProcedure("SELECT * FROM nation")) {
+            assertThat(query(
+                    "SELECT COUNT(*) FROM TABLE(system.procedure(query => 'EXECUTE %s.%s'))"
+                            .formatted(getSession().getSchema().orElseThrow(), testProcedure.getName())))
+                    .isNotFullyPushedDown(AggregationNode.class)
+                    .matches("VALUES BIGINT '25'");
+        }
+    }
+
+    @Test
+    public void testJoinPushdownRestrictedForProcedureFunction()
+    {
+        try (TestProcedure testProcedure = createTestingProcedure("SELECT * FROM nation")) {
+            assertThat(query(
+                    joinPushdownEnabled(getSession()),
+                    "SELECT nationkey FROM TABLE(system.procedure(query => 'EXECUTE %s.%s')) INNER JOIN nation USING (nationkey) ORDER BY 1 LIMIT 1"
+                            .formatted(getSession().getSchema().orElseThrow(), testProcedure.getName())))
+                    .joinIsNotFullyPushedDown()
+                    .matches("VALUES BIGINT '0'");
+        }
+    }
+
+    @Test
+    public void testProcedureWithSingleIfStatement()
+    {
+        try (TestProcedure testProcedure = createTestingProcedure(
+                "@id INTEGER",
+                """
+                IF @id > 50
+                    SELECT 1 as first_column;
+                """)) {
+            assertQuery(
+                    format("SELECT first_column FROM TABLE(system.procedure(query => 'EXECUTE %s.%s 100')) ".formatted(getSession().getSchema().orElseThrow(), testProcedure.getName()), getSession().getSchema().orElseThrow()),
+                    "VALUES 1");
+
+            assertQueryFails(
+                    "SELECT first_column FROM TABLE(system.procedure(query => 'EXECUTE %s.%s 10')) ".formatted(getSession().getSchema().orElseThrow(), testProcedure.getName()),
+                    "The statement did not return a result set.");
+        }
+    }
+
+    @Test
+    public void testProcedureWithIfElseStatement()
+    {
+        try (TestProcedure testProcedure = createTestingProcedure(
+                "@id INTEGER",
+                """
+                IF @id > 50
+                    SELECT 1 as first_column;
+                ELSE
+                    SELECT '2' as second_column;
+                """)) {
+            assertQueryFails(
+                    "SELECT * FROM TABLE(system.procedure(query => 'EXECUTE %s.%s 100')) "
+                            .formatted(getSession().getSchema().orElseThrow(), testProcedure.getName()),
+                    "Procedure has multiple ResultSets for query: .*");
+        }
+    }
+
+    @Test
+    public void testProcedureWithMultipleResultSet()
+    {
+        try (TestProcedure testProcedure = createTestingProcedure("SELECT 1 as first_row; SELECT 2 as second_row")) {
+            assertQueryFails(
+                    "SELECT * FROM TABLE(system.procedure(query => 'EXECUTE %s.%s')) "
+                            .formatted(getSession().getSchema().orElseThrow(), testProcedure.getName()),
+                    "Procedure has multiple ResultSets for query: .*");
+        }
+    }
+
+    @Test
+    public void testProcedureWithCreateOperation()
+    {
+        String tableName = "table_to_create" + randomNameSuffix();
+        try (TestProcedure testProcedure = createTestingProcedure("CREATE TABLE %s (id BIGINT)".formatted(tableName))) {
+            assertQueryFails(
+                    "SELECT * FROM TABLE(system.procedure(query => 'EXECUTE %s.%s'))"
+                            .formatted(getSession().getSchema().orElseThrow(), testProcedure.getName()),
+                    "Failed to get table handle for procedure query. The statement did not return a result set.");
+            assertQueryReturnsEmptyResult("SHOW TABLES LIKE '%s'".formatted(tableName));
+        }
+    }
+
+    @Test
+    public void testProcedureWithDropOperation()
+    {
+        try (TestTable table = new TestTable(onRemoteDatabase(), "table_to_drop", "(id BIGINT)");
+                TestProcedure testProcedure = createTestingProcedure("DROP TABLE " + table.getName())) {
+            assertQueryFails(
+                    "SELECT * FROM TABLE(system.procedure(query => 'EXECUTE %s.%s'))"
+                            .formatted(getSession().getSchema().orElseThrow(), testProcedure.getName()),
+                    "Failed to get table handle for procedure query. The statement did not return a result set.");
+            assertQuery("SHOW TABLES LIKE '%s'".formatted(table.getName()), "VALUES '%s'".formatted(table.getName()));
+        }
+    }
+
+    @Test
+    public void testProcedureWithInsertOperation()
+    {
+        try (TestTable table = new TestTable(onRemoteDatabase(), "table_to_insert", "(id BIGINT)");
+                TestProcedure testProcedure = createTestingProcedure("INSERT INTO %s VALUES (1)".formatted(table.getName()))) {
+            assertQueryFails(
+                    "SELECT * FROM TABLE(system.procedure(query => 'EXECUTE %s.%s'))"
+                            .formatted(getSession().getSchema().orElseThrow(), testProcedure.getName()),
+                    "Failed to get table handle for procedure query. The statement did not return a result set.");
+            assertQueryReturnsEmptyResult("SELECT * FROM " + table.getName());
+        }
+    }
+
+    @Test
+    public void testProcedureWithDeleteOperation()
+    {
+        try (TestTable table = new TestTable(onRemoteDatabase(), "table_to_delete", "(id BIGINT)", ImmutableList.of("1", "2", "3"));
+                TestProcedure testProcedure = createTestingProcedure("DELETE %s".formatted(table.getName()))) {
+            assertQueryFails(
+                    "SELECT * FROM TABLE(system.procedure(query => 'EXECUTE %s.%s'))"
+                            .formatted(getSession().getSchema().orElseThrow(), testProcedure.getName()),
+                    "Failed to get table handle for procedure query. The statement did not return a result set.");
+            assertQuery("SELECT * FROM " + table.getName(), "VALUES (1), (2), (3)");
+        }
+    }
+
+    @Test
+    public void testProcedureWithUpdateOperation()
+    {
+        try (TestTable table = new TestTable(onRemoteDatabase(), "table_to_update", "(id BIGINT)", ImmutableList.of("1", "2", "3"));
+                TestProcedure testProcedure = createTestingProcedure("UPDATE %s SET id = 4".formatted(table.getName()))) {
+            assertQueryFails(
+                    "SELECT * FROM TABLE(system.procedure(query => 'EXECUTE %s.%s'))"
+                            .formatted(getSession().getSchema().orElseThrow(), testProcedure.getName()),
+                    "Failed to get table handle for procedure query. The statement did not return a result set.");
+            assertQuery("SELECT * FROM " + table.getName(), "VALUES (1), (2), (3)");
+        }
+    }
+
+    @Test
+    public void testProcedureWithMergeOperation()
+    {
+        try (TestTable sourceTable = new TestTable(onRemoteDatabase(), "source_table", "(id BIGINT)", ImmutableList.of("1", "2", "3"));
+                TestTable targetTable = new TestTable(onRemoteDatabase(), "destination_table", "(id BIGINT)", ImmutableList.of("3", "4", "5"))) {
+            String mergeQuery = """
+                    MERGE %s AS TARGET USING %s AS SOURCE
+                    ON (TARGET.id = SOURCE.id)
+                    WHEN NOT MATCHED BY TARGET
+                        THEN INSERT(id) VALUES(SOURCE.id)
+                    WHEN NOT MATCHED BY SOURCE
+                        THEN DELETE
+                    """.formatted(targetTable.getName(), sourceTable.getName());
+            try (TestProcedure testProcedure = createTestingProcedure(mergeQuery + ";")) {
+                assertQueryFails(
+                        "SELECT * FROM TABLE(system.procedure(query => 'EXECUTE %s.%s'))"
+                                .formatted(getSession().getSchema().orElseThrow(), testProcedure.getName()),
+                        "Failed to get table handle for procedure query. The statement did not return a result set.");
+                assertQuery("SELECT * FROM " + targetTable.getName(), "VALUES (3), (4), (5)");
+            }
+        }
+    }
+
+    private TestProcedure createTestingProcedure(String baseQuery)
+    {
+        return createTestingProcedure("", baseQuery);
+    }
+
+    private TestProcedure createTestingProcedure(String inputArguments, String baseQuery)
+    {
+        String procedureName = "procedure" + randomNameSuffix();
+        return new TestProcedure(
+                onRemoteDatabase(),
+                procedureName,
+                """
+                    CREATE PROCEDURE %s.%s %s
+                    AS BEGIN
+                        %s
+                    END
+                """.formatted(getSession().getSchema().orElseThrow(), procedureName, inputArguments, baseQuery));
     }
 
     private String getLongInClause(int start, int length)

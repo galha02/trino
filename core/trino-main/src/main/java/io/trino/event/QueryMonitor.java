@@ -201,6 +201,8 @@ public class QueryMonitor
                         Optional.empty(),
                         Optional.empty(),
                         Optional.empty(),
+                        Optional.empty(),
+                        0,
                         0,
                         0,
                         0,
@@ -221,6 +223,7 @@ public class QueryMonitor
                         ImmutableList.of(),
                         0,
                         true,
+                        ImmutableList.of(),
                         ImmutableList.of(),
                         ImmutableList.of(),
                         ImmutableList.of(),
@@ -302,6 +305,7 @@ public class QueryMonitor
                 Optional.of(ofMillis(queryStats.getResourceWaitingTime().toMillis())),
                 Optional.of(ofMillis(queryStats.getAnalysisTime().toMillis())),
                 Optional.of(ofMillis(queryStats.getPlanningTime().toMillis())),
+                Optional.of(ofMillis(queryStats.getPlanningCpuTime().toMillis())),
                 Optional.of(ofMillis(queryStats.getExecutionTime().toMillis())),
                 Optional.of(ofMillis(queryStats.getInputBlockedTime().toMillis())),
                 Optional.of(ofMillis(queryStats.getFailedInputBlockedTime().toMillis())),
@@ -323,6 +327,7 @@ public class QueryMonitor
                 queryStats.getOutputPositions(),
                 queryStats.getLogicalWrittenDataSize().toBytes(),
                 queryStats.getWrittenPositions(),
+                queryStats.getSpilledDataSize().toBytes(),
                 queryStats.getCumulativeUserMemory(),
                 queryStats.getFailedCumulativeUserMemory(),
                 queryStats.getStageGcStatistics(),
@@ -331,6 +336,7 @@ public class QueryMonitor
                 getCpuDistributions(queryInfo),
                 getStageOutputBufferUtilizations(queryInfo),
                 operatorSummaries.build(),
+                ImmutableList.copyOf(queryInfo.getQueryStats().getOptimizerRulesSummaries()),
                 serializedPlanNodeStatsAndCosts);
     }
 

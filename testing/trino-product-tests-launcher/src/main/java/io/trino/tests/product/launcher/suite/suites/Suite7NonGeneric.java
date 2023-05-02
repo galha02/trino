@@ -21,6 +21,7 @@ import io.trino.tests.product.launcher.env.environment.EnvMultinodePostgresql;
 import io.trino.tests.product.launcher.env.environment.EnvMultinodeSqlserver;
 import io.trino.tests.product.launcher.env.environment.EnvSinglenodeKerberosHdfsImpersonationCrossRealm;
 import io.trino.tests.product.launcher.env.environment.EnvSinglenodeSparkHive;
+import io.trino.tests.product.launcher.env.environment.EnvSinglenodeSparkHiveNoStatsFallback;
 import io.trino.tests.product.launcher.env.environment.EnvTwoKerberosHives;
 import io.trino.tests.product.launcher.env.environment.EnvTwoMixedHives;
 import io.trino.tests.product.launcher.suite.Suite;
@@ -49,8 +50,11 @@ public class Suite7NonGeneric
                 testOnEnvironment(EnvSinglenodeSparkHive.class)
                         .withGroups("configured_features", "hive_spark")
                         .build(),
+                testOnEnvironment(EnvSinglenodeSparkHiveNoStatsFallback.class)
+                        .withGroups("configured_features", "hive_spark_no_stats_fallback")
+                        .build(),
                 testOnEnvironment(EnvSinglenodeKerberosHdfsImpersonationCrossRealm.class)
-                        .withGroups("configured_features", "storage_formats", "cli", "hdfs_impersonation")
+                        .withGroups("configured_features", "storage_formats", "cli", "hdfs_impersonation", "hive_kerberos")
                         .build(),
                 testOnEnvironment(EnvMultinodeKerberosKudu.class)
                         .withGroups("configured_features", "kudu")

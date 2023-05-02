@@ -5,7 +5,7 @@
     <parent>
         <groupId>io.trino</groupId>
         <artifactId>trino-root</artifactId>
-        <version>409-SNAPSHOT</version>
+        <version>416-SNAPSHOT</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
@@ -283,6 +283,18 @@
         </dependency>
 
         <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-context</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
             <groupId>org.openjdk.jol</groupId>
             <artifactId>jol-core</artifactId>
             <scope>provided</scope>
@@ -428,7 +440,7 @@
                             <excludes>
                                 <!-- If you are adding entry here also add an entry to cloud-tests or cloud-tests-case-insensitive-mapping profile below -->
                                 <exclude>**/TestBigQueryAvroConnectorTest.java</exclude>
-                                <exclude>**/TestBigQueryArrowConnectorTest.java</exclude>
+                                <exclude>**/TestBigQueryArrowConnectorSmokeTest.java</exclude>
                                 <exclude>**/TestBigQueryWithDifferentProjectIdConnectorSmokeTest.java</exclude>
                                 <exclude>**/TestBigQueryMetadataCaching.java</exclude>
                                 <exclude>**/TestBigQueryAvroTypeMapping.java</exclude>
@@ -459,7 +471,7 @@
                                 <include>**/TestBigQueryAvroConnectorTest.java</include>
                                 <include>**/TestBigQueryWithDifferentProjectIdConnectorSmokeTest.java</include>
                                 <include>**/TestBigQueryMetadataCaching.java</include>
-                                <include>**/TestBigQueryTypeMapping.java</include>
+                                <include>**/TestBigQueryAvroTypeMapping.java</include>
                                 <include>**/TestBigQueryMetadata.java</include>
                                 <include>**/TestBigQueryInstanceCleaner.java</include>
                                 <include>**/TestBigQuery*FailureRecoveryTest.java</include>
@@ -499,15 +511,19 @@
             <activation>
                 <activeByDefault>false</activeByDefault>
             </activation>
+            <properties>
+                <air.test.jvm.additional-arguments>
+                    --add-opens=java.base/java.nio=ALL-UNNAMED
+                </air.test.jvm.additional-arguments>
+            </properties>
             <build>
                 <plugins>
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-surefire-plugin</artifactId>
                         <configuration>
-                            <argLine>--add-opens=java.base/java.nio=ALL-UNNAMED</argLine>
                             <includes>
-                                <include>**/TestBigQueryArrowConnectorTest.java</include>
+                                <include>**/TestBigQueryArrowConnectorSmokeTest.java</include>
                                 <include>**/TestBigQueryArrowTypeMapping.java</include>
                             </includes>
                         </configuration>

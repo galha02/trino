@@ -220,7 +220,7 @@ to the following table:
     - Time zone is UTC
   * - ``GEOGRAPHY``
     - ``VARCHAR``
-    - In `Well-known text (WKT) <https://en.wikipedia.org/wiki/Well-known_text_representation_of_geometry>`_ format
+    - In `Well-known text (WKT) <https://wikipedia.org/wiki/Well-known_text_representation_of_geometry>`_ format
   * - ``ARRAY``
     - ``ARRAY``
     -
@@ -344,6 +344,8 @@ requires syntax native to BigQuery, because the full query is pushed down and
 processed by BigQuery. This can be useful for accessing native features which are
 not available in Trino or for improving query performance in situations where
 running a query natively may be faster.
+
+.. include:: query-passthrough-warning.fragment
 
 .. include:: polymorphic-table-function-ordering.fragment
 

@@ -70,7 +70,6 @@ import static io.trino.testing.TestingAccessControlManager.privilege;
 import static io.trino.testing.TestingConnectorBehavior.SUPPORTS_DELETE;
 import static io.trino.testing.TestingNames.randomNameSuffix;
 import static io.trino.testing.TestingSession.testSessionBuilder;
-import static io.trino.testing.assertions.Assert.assertEquals;
 import static io.trino.testing.assertions.Assert.assertEventually;
 import static io.trino.tpch.TpchTable.CUSTOMER;
 import static io.trino.tpch.TpchTable.LINE_ITEM;
@@ -81,6 +80,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
 
@@ -193,16 +193,11 @@ public abstract class BaseDeltaLakeConnectorSmokeTest
     protected boolean hasBehavior(TestingConnectorBehavior connectorBehavior)
     {
         switch (connectorBehavior) {
-            case SUPPORTS_CREATE_VIEW:
-                return true;
+            case SUPPORTS_CREATE_MATERIALIZED_VIEW:
+                return false;
 
             case SUPPORTS_RENAME_SCHEMA:
                 return false;
-
-            case SUPPORTS_DELETE:
-            case SUPPORTS_UPDATE:
-            case SUPPORTS_MERGE:
-                return true;
 
             default:
                 return super.hasBehavior(connectorBehavior);
@@ -347,9 +342,7 @@ public abstract class BaseDeltaLakeConnectorSmokeTest
                                 ")\n" +
                                 "WITH (\n" +
                                 "   location = '%s',\n" +
-                                "   partitioned_by = ARRAY['age'],\n" +
-                                "   reader_version = 1,\n" +
-                                "   writer_version = 2\n" +
+                                "   partitioned_by = ARRAY['age']\n" +
                                 ")",
                         SCHEMA,
                         getLocationForTable(bucketName, "person")));
@@ -478,9 +471,7 @@ public abstract class BaseDeltaLakeConnectorSmokeTest
                                 ")\n" +
                                 "WITH (\n" +
                                 "   location = '%s',\n" +
-                                "   partitioned_by = ARRAY['regionkey'],\n" +
-                                "   reader_version = 1,\n" +
-                                "   writer_version = 2\n" +
+                                "   partitioned_by = ARRAY['regionkey']\n" +
                                 ")",
                         DELTA_CATALOG, SCHEMA, tableName, getLocationForTable(bucketName, tableName)));
         assertQuery("SELECT * FROM " + tableName, "SELECT name, regionkey, comment FROM nation");
@@ -802,21 +793,110 @@ public abstract class BaseDeltaLakeConnectorSmokeTest
     }
 
     @Test
+    public void testTimestampWithTimeZoneInArrayType()
+    {
+        String tableName = "test_timestamp_with_time_zone_" + randomNameSuffix();
+        assertUpdate("CREATE TABLE " + tableName + " (id int, data array(timestamp with time zone)) " +
+                "WITH (location = '" + getLocationForTable(bucketName, tableName) + "') ");
+
+        String values = """
+                (1, ARRAY[timestamp '2012-01-01 01:02:03.123 UTC']),
+                (2, ARRAY[NULL]),
+                (3, NULL)
+                """;
+        assertUpdate("INSERT INTO " + tableName + " VALUES " + values, 3);
+
+        assertThat(query("SELECT * FROM " + tableName))
+                .matches("VALUES " + values);
+        assertThat(query("SELECT id FROM " + tableName + " WHERE data = ARRAY[timestamp '2012-01-01 01:02:03.123 UTC']"))
+                .matches("VALUES 1");
+
+        assertUpdate("DROP TABLE " + tableName);
+    }
+
+    @Test
+    public void testTimestampWithTimeZoneInMapType()
+    {
+        String tableName = "test_timestamp_with_time_zone_" + randomNameSuffix();
+        assertUpdate("CREATE TABLE " + tableName + " (id int, data map(timestamp with time zone, timestamp with time zone)) " +
+                "WITH (location = '" + getLocationForTable(bucketName, tableName) + "') ");
+
+        String values = """
+                (1, MAP(ARRAY[timestamp '2012-01-01 01:02:03.123 UTC'], ARRAY[timestamp '2012-02-01 01:02:03.123 UTC'])),
+                (2, MAP(ARRAY[timestamp '2023-12-31 03:02:01.321 UTC'], ARRAY[NULL])),
+                (3, MAP(NULL, NULL)),
+                (4, NULL)
+                """;
+        assertUpdate("INSERT INTO " + tableName + " VALUES " + values, 4);
+
+        assertThat(query("SELECT * FROM " + tableName))
+                .matches("VALUES " + values);
+        assertThat(query("SELECT id FROM " + tableName + " WHERE data = MAP(ARRAY[timestamp '2012-01-01 01:02:03.123 UTC'], ARRAY[timestamp '2012-02-01 01:02:03.123 UTC'])"))
+                .matches("VALUES 1");
+
+        assertUpdate("DROP TABLE " + tableName);
+    }
+
+    @Test
+    public void testTimestampWithTimeZoneInRowType()
+    {
+        String tableName = "test_timestamp_with_time_zone_" + randomNameSuffix();
+        assertUpdate("CREATE TABLE " + tableName + " (id int, data row(ts_tz timestamp with time zone)) " +
+                "WITH (location = '" + getLocationForTable(bucketName, tableName) + "') ");
+
+        String values = """
+                (1, CAST(ROW(timestamp '2012-01-01 01:02:03.123 UTC') AS ROW(ts_tz timestamp with time zone))),
+                (2, CAST(ROW(NULL) AS ROW(ts_tz timestamp with time zone))),
+                (3, CAST(NULL AS ROW(ts_tz timestamp with time zone)))
+                """;
+        assertUpdate("INSERT INTO " + tableName + " VALUES " + values, 3);
+
+        assertThat(query("SELECT * FROM " + tableName))
+                .matches("VALUES " + values);
+        assertThat(query("SELECT id FROM " + tableName + " WHERE data = ROW(timestamp '2012-01-01 01:02:03.123 UTC')"))
+                .matches("VALUES 1");
+
+        assertUpdate("DROP TABLE " + tableName);
+    }
+
+    @Test
+    public void testTimestampWithTimeZoneInNestedField()
+    {
+        String tableName = "test_timestamp_with_time_zone_" + randomNameSuffix();
+        assertUpdate("CREATE TABLE " + tableName + " (id int, parent row(child row(grandchild timestamp with time zone))) " +
+                "WITH (location = '" + getLocationForTable(bucketName, tableName) + "') ");
+
+        String values = """
+                (1, CAST(ROW(ROW(timestamp '2012-01-01 01:02:03.123 UTC')) AS ROW(child ROW(grandchild timestamp with time zone)))),
+                (2, CAST(ROW(ROW(NULL)) AS ROW(child ROW(grandchild timestamp with time zone)))),
+                (3, CAST(NULL AS ROW(child ROW(grandchild timestamp with time zone))))
+                """;
+        assertUpdate("INSERT INTO " + tableName + " VALUES " + values, 3);
+
+        assertThat(query("SELECT * FROM " + tableName))
+                .matches("VALUES " + values);
+        assertThat(query("SELECT id FROM " + tableName + " WHERE parent = ROW(ROW(timestamp '2012-01-01 01:02:03.123 UTC'))"))
+                .matches("VALUES 1");
+
+        assertUpdate("DROP TABLE " + tableName);
+    }
+
+    @Test
     public void testTimestampWithTimeZoneInComplexTypesFails()
     {
         String location = getLocationForTable("delta", "foo");
         assertQueryFails(
-                "CREATE TABLE should_fail (a, b) WITH (location = '" + location + "') AS VALUES (ROW(timestamp '2012-10-31 01:00:00.123 UTC', timestamp '2012-10-31 01:00:00.321 UTC'), 1)",
-                "Nested TIMESTAMP types are not supported, invalid type:.*");
+                "CREATE TABLE should_fail (a, b) WITH (location = '" + location + "') AS VALUES (ROW(timestamp '2012-10-31 01:00:00.1234 UTC', timestamp '2012-10-31 01:00:00.4321 UTC'), 1)",
+                "Unsupported type:.*");
         assertQueryFails(
-                "CREATE TABLE should_fail (a) WITH (location = '" + location + "') AS VALUES ARRAY[timestamp '2012-10-31 01:00:00.123 UTC', timestamp '2012-10-31 01:00:00.321 UTC']",
-                "Nested TIMESTAMP types are not supported, invalid type:.*");
+                "CREATE TABLE should_fail (a) WITH (location = '" + location + "') AS VALUES ARRAY[timestamp '2012-10-31 01:00:00.1234 UTC', timestamp '2012-10-31 01:00:00.4321 UTC']",
+                "Unsupported type:.*");
         assertQueryFails(
-                "CREATE TABLE should_fail (a) WITH (location = '" + location + "') AS VALUES MAP(ARRAY[ARRAY[timestamp '2012-10-31 01:00:00.123 UTC', timestamp '2012-10-31 01:00:00.321 UTC']], ARRAY[42])",
-                "Nested TIMESTAMP types are not supported, invalid type:.*");
+                "CREATE TABLE should_fail (a) WITH (location = '" + location + "') AS VALUES MAP(ARRAY[ARRAY[timestamp '2012-10-31 01:00:00.1234 UTC', timestamp '2012-10-31 01:00:00.4321 UTC']], ARRAY[42])",
+                "Unsupported type:.*");
         assertQueryFails(
-                "CREATE TABLE should_fail (a) WITH (location = '" + location + "') AS VALUES MAP(ARRAY[42], ARRAY[ARRAY[timestamp '2012-10-31 01:00:00.123 UTC', timestamp '2012-10-31 01:00:00.321 UTC']])",
-                "Nested TIMESTAMP types are not supported, invalid type:.*");
+                "CREATE TABLE should_fail (a) WITH (location = '" + location + "') AS VALUES MAP(ARRAY[42], ARRAY[ARRAY[timestamp '2012-10-31 01:00:00.1234 UTC', timestamp '2012-10-31 01:00:00.4321 UTC']])",
+                "Unsupported type:.*");
     }
 
     @Test
@@ -1342,24 +1422,18 @@ public abstract class BaseDeltaLakeConnectorSmokeTest
         }
 
         // Verify table schema gets reflected correctly
+        String qualifiedTableName = "%s.%s.%s".formatted(getSession().getCatalog().orElseThrow(), SCHEMA, tableName);
         assertThat(computeScalar("SHOW CREATE TABLE " + tableName))
-                .isEqualTo(format("" +
-                                "CREATE TABLE %s.%s.%s (\n" +
-                                "   a_number integer,\n" +
-                                "   a_string varchar,\n" +
-                                "   another_string varchar\n" +
-                                ")\n" +
-                                "WITH (\n" +
-                                "   location = '%s',\n" +
-                                "   partitioned_by = ARRAY[%s],\n" +
-                                "   reader_version = 1,\n" +
-                                "   writer_version = 2\n" +
-                                ")",
-                        getSession().getCatalog().orElseThrow(),
-                        SCHEMA,
-                        tableName,
-                        newLocation,
-                        secondPartitioned ? "'a_number'" : ""));
+                .isEqualTo("" +
+                        "CREATE TABLE " + qualifiedTableName + " (\n" +
+                        "   a_number integer,\n" +
+                        "   a_string varchar,\n" +
+                        "   another_string varchar\n" +
+                        ")\n" +
+                        "WITH (\n" +
+                        "   location = '" + newLocation + "'" + (secondPartitioned ? "," : "") + "\n" +
+                        (secondPartitioned ? "   partitioned_by = ARRAY['a_number']\n" : "") +
+                        ")");
     }
 
     /**
@@ -1445,7 +1519,7 @@ public abstract class BaseDeltaLakeConnectorSmokeTest
         registerTableFromResources(tableName, "databricks/pruning/parquet_struct_statistics", getQueryRunner());
         String transactionLogDirectory = format("%s/_delta_log", tableName);
 
-        // there should should be one checkpoint already (created by DB)
+        // there should be one checkpoint already (created by DB)
         assertThat(listCheckpointFiles(transactionLogDirectory)).hasSize(1);
         testCountQuery(format("SELECT count(*) FROM %s WHERE l = 0", tableName), 3, 3);
 
@@ -1663,7 +1737,6 @@ public abstract class BaseDeltaLakeConnectorSmokeTest
                 .setCatalog(getQueryRunner().getDefaultSession().getCatalog())
                 .setSchema(getQueryRunner().getDefaultSession().getSchema())
                 .setSystemProperty("use_preferred_write_partitioning", "true")
-                .setSystemProperty("preferred_write_partitioning_min_number_of_partitions", "1")
                 .build();
         String tableName = "test_optimize_partitioned_table_" + randomNameSuffix();
         String tableLocation = getLocationForTable(bucketName, tableName);
@@ -1828,6 +1901,27 @@ public abstract class BaseDeltaLakeConnectorSmokeTest
     }
 
     @Test
+    public void testRegisterTableWithTrailingSpaceInLocation()
+    {
+        String tableName = "test_create_table_with_trailing_space_" + randomNameSuffix();
+        String tableLocationWithTrailingSpace = bucketUrl() + tableName + " ";
+
+        assertQuerySucceeds(format("CREATE TABLE %s WITH (location = '%s') AS SELECT 1 AS a, 'INDIA' AS b, true AS c", tableName, tableLocationWithTrailingSpace));
+        assertQuery("SELECT * FROM " + tableName, "VALUES (1, 'INDIA', true)");
+
+        assertThat(getTableLocation(tableName)).isEqualTo(tableLocationWithTrailingSpace);
+
+        String registeredTableName = "test_register_table_with_trailing_space_" + randomNameSuffix();
+        assertQuerySucceeds(format("CALL system.register_table('%s', '%s', '%s')", SCHEMA, registeredTableName, tableLocationWithTrailingSpace));
+        assertQuery("SELECT * FROM " + registeredTableName, "VALUES (1, 'INDIA', true)");
+
+        assertThat(getTableLocation(registeredTableName)).isEqualTo(tableLocationWithTrailingSpace);
+
+        assertUpdate("DROP TABLE " + registeredTableName);
+        assertUpdate("DROP TABLE " + tableName);
+    }
+
+    @Test
     public void testUnregisterTable()
     {
         String tableName = "test_unregister_table_" + randomNameSuffix();
@@ -1870,7 +1964,7 @@ public abstract class BaseDeltaLakeConnectorSmokeTest
         String schemaName = "test_unregister_table_not_existing_schema_" + randomNameSuffix();
         assertQueryFails(
                 "CALL system.unregister_table('" + schemaName + "', 'non_existent_table')",
-                "Schema " + schemaName + " not found");
+                "Table \\Q'" + schemaName + ".non_existent_table' not found");
     }
 
     @Test

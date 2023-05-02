@@ -62,6 +62,7 @@ import io.trino.operator.FilterAndProjectOperator;
 import io.trino.operator.GroupIdOperator;
 import io.trino.operator.HashAggregationOperator.HashAggregationOperatorFactory;
 import io.trino.operator.HashSemiJoinOperator;
+import io.trino.operator.LeafTableFunctionOperator.LeafTableFunctionOperatorFactory;
 import io.trino.operator.LimitOperator.LimitOperatorFactory;
 import io.trino.operator.LocalPlannerAware;
 import io.trino.operator.MarkDistinctOperator.MarkDistinctOperatorFactory;
@@ -77,6 +78,7 @@ import io.trino.operator.PagesIndex;
 import io.trino.operator.PagesSpatialIndexFactory;
 import io.trino.operator.PartitionFunction;
 import io.trino.operator.RefreshMaterializedViewOperator.RefreshMaterializedViewOperatorFactory;
+import io.trino.operator.RegularTableFunctionPartition.PassThroughColumnSpecification;
 import io.trino.operator.RetryPolicy;
 import io.trino.operator.RowNumberOperator;
 import io.trino.operator.ScanFilterAndProjectOperator.ScanFilterAndProjectOperatorFactory;
@@ -90,6 +92,7 @@ import io.trino.operator.SpatialJoinOperator.SpatialJoinOperatorFactory;
 import io.trino.operator.StatisticsWriterOperator.StatisticsWriterOperatorFactory;
 import io.trino.operator.StreamingAggregationOperator;
 import io.trino.operator.TableDeleteOperator.TableDeleteOperatorFactory;
+import io.trino.operator.TableFunctionOperator.TableFunctionOperatorFactory;
 import io.trino.operator.TableScanOperator.TableScanOperatorFactory;
 import io.trino.operator.TaskContext;
 import io.trino.operator.TopNOperator;
@@ -124,6 +127,7 @@ import io.trino.operator.join.PartitionedLookupSourceFactory;
 import io.trino.operator.join.unspilled.HashBuilderOperator;
 import io.trino.operator.output.PartitionedOutputOperator.PartitionedOutputFactory;
 import io.trino.operator.output.PositionsAppenderFactory;
+import io.trino.operator.output.SkewedPartitionRebalancer;
 import io.trino.operator.output.TaskOutputOperator.TaskOutputFactory;
 import io.trino.operator.project.CursorProcessor;
 import io.trino.operator.project.PageProcessor;
@@ -146,6 +150,7 @@ import io.trino.operator.window.pattern.MeasureComputation.MeasureComputationSup
 import io.trino.operator.window.pattern.PhysicalValueAccessor;
 import io.trino.operator.window.pattern.PhysicalValuePointer;
 import io.trino.operator.window.pattern.SetEvaluator.SetEvaluatorSupplier;
+import io.trino.plugin.base.MappedRecordSet;
 import io.trino.spi.Page;
 import io.trino.spi.PageBuilder;
 import io.trino.spi.TrinoException;
@@ -163,12 +168,12 @@ import io.trino.spi.function.FunctionKind;
 import io.trino.spi.function.WindowFunctionSupplier;
 import io.trino.spi.predicate.Domain;
 import io.trino.spi.predicate.NullableValue;
+import io.trino.spi.ptf.TableFunctionProcessorProvider;
 import io.trino.spi.type.RowType;
 import io.trino.spi.type.Type;
 import io.trino.spiller.PartitioningSpillerFactory;
 import io.trino.spiller.SingleStreamSpillerFactory;
 import io.trino.spiller.SpillerFactory;
-import io.trino.split.MappedRecordSet;
 import io.trino.split.PageSinkManager;
 import io.trino.split.PageSourceProvider;
 import io.trino.sql.DynamicFilters;
@@ -185,6 +190,7 @@ import io.trino.sql.planner.plan.AggregationNode.Aggregation;
 import io.trino.sql.planner.plan.AggregationNode.Step;
 import io.trino.sql.planner.plan.AssignUniqueId;
 import io.trino.sql.planner.plan.Assignments;
+import io.trino.sql.planner.plan.DataOrganizationSpecification;
 import io.trino.sql.planner.plan.DistinctLimitNode;
 import io.trino.sql.planner.plan.DynamicFilterId;
 import io.trino.sql.planner.plan.DynamicFilterSourceNode;
@@ -221,6 +227,8 @@ import io.trino.sql.planner.plan.TableDeleteNode;
 import io.trino.sql.planner.plan.TableExecuteNode;
 import io.trino.sql.planner.plan.TableFinishNode;
 import io.trino.sql.planner.plan.TableFunctionNode;
+import io.trino.sql.planner.plan.TableFunctionNode.PassThroughColumn;
+import io.trino.sql.planner.plan.TableFunctionNode.PassThroughSpecification;
 import io.trino.sql.planner.plan.TableFunctionProcessorNode;
 import io.trino.sql.planner.plan.TableScanNode;
 import io.trino.sql.planner.plan.TableWriterNode;
@@ -288,7 +296,6 @@ import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static com.google.common.collect.Range.closedOpen;
 import static com.google.common.collect.Sets.difference;
-import static io.trino.SystemSessionProperties.getAdaptivePartialAggregationMinRows;
 import static io.trino.SystemSessionProperties.getAdaptivePartialAggregationUniqueRowsRatioThreshold;
 import static io.trino.SystemSessionProperties.getAggregationOperatorUnspillMemoryLimit;
 import static io.trino.SystemSessionProperties.getFilterAndProjectMinOutputPageRowCount;
@@ -322,6 +329,10 @@ import static io.trino.operator.aggregation.AccumulatorCompiler.generateAccumula
 import static io.trino.operator.join.JoinUtils.isBuildSideReplicated;
 import static io.trino.operator.join.NestedLoopBuildOperator.NestedLoopBuildOperatorFactory;
 import static io.trino.operator.join.NestedLoopJoinOperator.NestedLoopJoinOperatorFactory;
+import static io.trino.operator.output.SkewedPartitionRebalancer.checkCanScalePartitionsRemotely;
+import static io.trino.operator.output.SkewedPartitionRebalancer.createPartitionFunction;
+import static io.trino.operator.output.SkewedPartitionRebalancer.createSkewedPartitionRebalancer;
+import static io.trino.operator.output.SkewedPartitionRebalancer.getTaskCount;
 import static io.trino.operator.window.pattern.PhysicalValuePointer.CLASSIFIER;
 import static io.trino.operator.window.pattern.PhysicalValuePointer.MATCH_NUMBER;
 import static io.trino.spi.StandardErrorCode.COMPILER_ERROR;
@@ -367,6 +378,8 @@ import static io.trino.util.SpatialJoinUtils.ST_INTERSECTS;
 import static io.trino.util.SpatialJoinUtils.ST_WITHIN;
 import static io.trino.util.SpatialJoinUtils.extractSupportedSpatialComparisons;
 import static io.trino.util.SpatialJoinUtils.extractSupportedSpatialFunctions;
+import static java.lang.Math.toIntExact;
+import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.HOURS;
 import static java.util.stream.Collectors.partitioningBy;
@@ -558,7 +571,20 @@ public class LocalExecutionPlanner
                     .collect(toImmutableList());
         }
 
-        PartitionFunction partitionFunction = nodePartitioningManager.getPartitionFunction(taskContext.getSession(), partitioningScheme, partitionChannelTypes);
+        PartitionFunction partitionFunction;
+        Optional<SkewedPartitionRebalancer> skewedPartitionRebalancer = Optional.empty();
+        int taskCount = getTaskCount(partitioningScheme);
+        if (checkCanScalePartitionsRemotely(taskContext.getSession(), taskCount, partitioningScheme.getPartitioning().getHandle(), nodePartitioningManager)) {
+            partitionFunction = createPartitionFunction(taskContext.getSession(), nodePartitioningManager, partitioningScheme, partitionChannelTypes);
+            skewedPartitionRebalancer = Optional.of(createSkewedPartitionRebalancer(
+                    partitionFunction.getPartitionCount(),
+                    taskCount,
+                    getTaskPartitionedWriterCount(taskContext.getSession()),
+                    getWriterMinSize(taskContext.getSession()).toBytes()));
+        }
+        else {
+            partitionFunction = nodePartitioningManager.getPartitionFunction(taskContext.getSession(), partitioningScheme, partitionChannelTypes);
+        }
         OptionalInt nullChannel = OptionalInt.empty();
         Set<Symbol> partitioningColumns = partitioningScheme.getPartitioning().getColumns();
 
@@ -585,7 +611,8 @@ public class LocalExecutionPlanner
                         positionsAppenderFactory,
                         taskContext.getSession().getExchangeEncryptionKey(),
                         taskContext.newAggregateMemoryContext(),
-                        getPagePartitioningBufferPoolSize(taskContext.getSession())));
+                        getPagePartitioningBufferPoolSize(taskContext.getSession()),
+                        skewedPartitionRebalancer));
     }
 
     public LocalExecutionPlan plan(
@@ -680,7 +707,7 @@ public class LocalExecutionPlanner
             else {
                 operatorFactories = toOperatorFactories(operatorFactoriesWithTypes);
             }
-            driverFactories.add(new DriverFactory(getNextPipelineId(), inputDriver, outputDriver, operatorFactories, driverInstances));
+            addDriverFactory(inputDriver, outputDriver, operatorFactories, driverInstances);
         }
 
         private List<OperatorFactory> handleLateMaterialization(List<OperatorFactoryWithTypes> operatorFactories)
@@ -1656,13 +1683,98 @@ public class LocalExecutionPlanner
         @Override
         public PhysicalOperation visitTableFunction(TableFunctionNode node, LocalExecutionPlanContext context)
         {
-            throw new UnsupportedOperationException("execution by operator is not yet implemented for table function " + node.getName());
+            throw new IllegalStateException(format("Unexpected node: TableFunctionNode (%s)", node.getName()));
         }
 
         @Override
         public PhysicalOperation visitTableFunctionProcessor(TableFunctionProcessorNode node, LocalExecutionPlanContext context)
         {
-            throw new UnsupportedOperationException("execution by operator is not yet implemented for table function " + node.getName());
+            TableFunctionProcessorProvider processorProvider = plannerContext.getFunctionManager().getTableFunctionProcessorProvider(node.getHandle());
+
+            if (node.getSource().isEmpty()) {
+                OperatorFactory operatorFactory = new LeafTableFunctionOperatorFactory(
+                        context.getNextOperatorId(),
+                        node.getId(),
+                        node.getHandle().getCatalogHandle(),
+                        processorProvider,
+                        node.getHandle().getFunctionHandle());
+                return new PhysicalOperation(operatorFactory, makeLayout(node), context);
+            }
+
+            PhysicalOperation source = node.getSource().orElseThrow().accept(this, context);
+
+            int properChannelsCount = node.getProperOutputs().size();
+
+            long passThroughSourcesCount = node.getPassThroughSpecifications().stream()
+                    .filter(PassThroughSpecification::declaredAsPassThrough)
+                    .count();
+
+            List<List<Integer>> requiredChannels = node.getRequiredSymbols().stream()
+                    .map(list -> getChannelsForSymbols(list, source.getLayout()))
+                    .collect(toImmutableList());
+
+            Optional<Map<Integer, Integer>> markerChannels = node.getMarkerSymbols()
+                    .map(map -> map.entrySet().stream()
+                            .collect(toImmutableMap(entry -> source.getLayout().get(entry.getKey()), entry -> source.getLayout().get(entry.getValue()))));
+
+            int channel = properChannelsCount;
+            ImmutableList.Builder<PassThroughColumnSpecification> passThroughColumnSpecifications = ImmutableList.builder();
+            for (PassThroughSpecification specification : node.getPassThroughSpecifications()) {
+                // the table function produces one index channel for each source declared as pass-through. They are laid out after the proper channels.
+                int indexChannel = specification.declaredAsPassThrough() ? channel++ : -1;
+                for (PassThroughColumn column : specification.columns()) {
+                    passThroughColumnSpecifications.add(new PassThroughColumnSpecification(column.isPartitioningColumn(), source.getLayout().get(column.symbol()), indexChannel));
+                }
+            }
+
+            List<Integer> partitionChannels = node.getSpecification()
+                    .map(DataOrganizationSpecification::getPartitionBy)
+                    .map(list -> getChannelsForSymbols(list, source.getLayout()))
+                    .orElse(ImmutableList.of());
+
+            List<Integer> sortChannels = ImmutableList.of();
+            List<SortOrder> sortOrders = ImmutableList.of();
+            if (node.getSpecification().flatMap(DataOrganizationSpecification::getOrderingScheme).isPresent()) {
+                OrderingScheme orderingScheme = node.getSpecification().flatMap(DataOrganizationSpecification::getOrderingScheme).orElseThrow();
+                sortChannels = getChannelsForSymbols(orderingScheme.getOrderBy(), source.getLayout());
+                sortOrders = orderingScheme.getOrderingList();
+            }
+
+            OperatorFactory operator = new TableFunctionOperatorFactory(
+                    context.getNextOperatorId(),
+                    node.getId(),
+                    processorProvider,
+                    node.getHandle().getFunctionHandle(),
+                    properChannelsCount,
+                    toIntExact(passThroughSourcesCount),
+                    requiredChannels,
+                    markerChannels,
+                    passThroughColumnSpecifications.build(),
+                    node.isPruneWhenEmpty(),
+                    partitionChannels,
+                    getChannelsForSymbols(ImmutableList.copyOf(node.getPrePartitioned()), source.getLayout()),
+                    sortChannels,
+                    sortOrders,
+                    node.getPreSorted(),
+                    source.getTypes(),
+                    10_000,
+                    pagesIndexFactory);
+
+            ImmutableMap.Builder<Symbol, Integer> outputMappings = ImmutableMap.builder();
+            for (int i = 0; i < node.getProperOutputs().size(); i++) {
+                outputMappings.put(node.getProperOutputs().get(i), i);
+            }
+            List<Symbol> passThroughSymbols = node.getPassThroughSpecifications().stream()
+                    .map(PassThroughSpecification::columns)
+                    .flatMap(Collection::stream)
+                    .map(PassThroughColumn::symbol)
+                    .collect(toImmutableList());
+            int outputChannel = properChannelsCount;
+            for (Symbol passThroughSymbol : passThroughSymbols) {
+                outputMappings.put(passThroughSymbol, outputChannel++);
+            }
+
+            return new PhysicalOperation(operator, outputMappings.buildOrThrow(), context, source);
         }
 
         @Override
@@ -3173,7 +3285,7 @@ public class LocalExecutionPlanner
         public PhysicalOperation visitTableWriter(TableWriterNode node, LocalExecutionPlanContext context)
         {
             // Set table writer count
-            int maxWriterCount = getWriterCount(session, node.getPartitioningScheme(), node.getPreferredPartitioningScheme(), node.getSource());
+            int maxWriterCount = getWriterCount(session, node.getPartitioningScheme(), node.getSource());
             context.setDriverInstanceCount(maxWriterCount);
             context.taskContext.setMaxWriterCount(maxWriterCount);
 
@@ -3331,7 +3443,7 @@ public class LocalExecutionPlanner
         public PhysicalOperation visitTableExecute(TableExecuteNode node, LocalExecutionPlanContext context)
         {
             // Set table writer count
-            int maxWriterCount = getWriterCount(session, node.getPartitioningScheme(), node.getPreferredPartitioningScheme(), node.getSource());
+            int maxWriterCount = getWriterCount(session, node.getPartitioningScheme(), node.getSource());
             context.setDriverInstanceCount(maxWriterCount);
             context.taskContext.setMaxWriterCount(maxWriterCount);
 
@@ -3358,7 +3470,7 @@ public class LocalExecutionPlanner
             return new PhysicalOperation(operatorFactory, outputMapping.buildOrThrow(), context, source);
         }
 
-        private int getWriterCount(Session session, Optional<PartitioningScheme> partitioningScheme, Optional<PartitioningScheme> preferredPartitioningScheme, PlanNode source)
+        private int getWriterCount(Session session, Optional<PartitioningScheme> partitioningScheme, PlanNode source)
         {
             // This check is required because we don't know which writer count to use when exchange is
             // single distribution. It could be possible that when scaling is enabled, a single distribution is
@@ -3368,18 +3480,12 @@ public class LocalExecutionPlanner
                 return 1;
             }
 
-            if (isLocalScaledWriterExchange(source)) {
-                return partitioningScheme.or(() -> preferredPartitioningScheme)
-                        // The default value of partitioned writer count is 32 which is high enough to use it
-                        // for both cases when scaling is enabled or not. Additionally, it doesn't lead to too many
-                        // small files since when scaling is disabled only single writer will handle a single partition.
-                        .map(scheme -> getTaskPartitionedWriterCount(session))
-                        .orElseGet(() -> getTaskScaleWritersMaxWriterCount(session));
-            }
-
+            // The default value of partitioned writer count is 32 which is high enough to use it
+            // for both cases when scaling is enabled or not. Additionally, it doesn't lead to too many
+            // small files since when scaling is disabled only single writer will handle a single partition.
             return partitioningScheme
                     .map(scheme -> getTaskPartitionedWriterCount(session))
-                    .orElseGet(() -> getTaskWriterCount(session));
+                    .orElseGet(() -> isLocalScaledWriterExchange(source) ? getTaskScaleWritersMaxWriterCount(session) : getTaskWriterCount(session));
         }
 
         private boolean isSingleGatheringExchange(PlanNode node)
@@ -3951,15 +4057,15 @@ public class LocalExecutionPlanner
                     spillerFactory,
                     joinCompiler,
                     blockTypeOperators,
-                    createPartialAggregationController(step, session));
+                    createPartialAggregationController(maxPartialAggregationMemorySize, step, session));
         }
     }
 
-    private static Optional<PartialAggregationController> createPartialAggregationController(AggregationNode.Step step, Session session)
+    private static Optional<PartialAggregationController> createPartialAggregationController(Optional<DataSize> maxPartialAggregationMemorySize, AggregationNode.Step step, Session session)
     {
-        return step.isOutputPartial() && isAdaptivePartialAggregationEnabled(session) ?
+        return maxPartialAggregationMemorySize.isPresent() && step.isOutputPartial() && isAdaptivePartialAggregationEnabled(session) ?
                 Optional.of(new PartialAggregationController(
-                        getAdaptivePartialAggregationMinRows(session),
+                        maxPartialAggregationMemorySize.get(),
                         getAdaptivePartialAggregationUniqueRowsRatioThreshold(session))) :
                 Optional.empty();
     }

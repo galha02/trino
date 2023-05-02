@@ -203,6 +203,7 @@ public final class TestRun
             if (impactedFeaturesFile.isPresent()) {
                 try {
                     this.impactedFeatures = Optional.of(Files.asCharSource(impactedFeaturesFile.get(), StandardCharsets.UTF_8).readLines());
+                    log.info("Impacted features: %s", this.impactedFeatures);
                 }
                 catch (IOException e) {
                     throw new RuntimeException(e);
@@ -349,7 +350,7 @@ public final class TestRun
                                         // Force Parallel GC to ensure MaxHeapFreeRatio is respected
                                         "-XX:+UseParallelGC",
                                         "-XX:MinHeapFreeRatio=10",
-                                        "-XX:MaxHeapFreeRatio=10",
+                                        "-XX:MaxHeapFreeRatio=50",
                                         "-Djava.util.logging.config.file=/docker/presto-product-tests/conf/tempto/logging.properties",
                                         "-Duser.timezone=Asia/Kathmandu",
                                         // Tempto has progress logging built in

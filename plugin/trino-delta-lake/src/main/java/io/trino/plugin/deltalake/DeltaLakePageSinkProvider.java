@@ -13,6 +13,7 @@
  */
 package io.trino.plugin.deltalake;
 
+import com.google.common.collect.ImmutableList;
 import io.airlift.json.JsonCodec;
 import io.trino.filesystem.TrinoFileSystemFactory;
 import io.trino.plugin.deltalake.procedure.DeltaLakeTableExecuteHandle;
@@ -36,15 +37,18 @@ import org.joda.time.DateTimeZone;
 import javax.inject.Inject;
 
 import java.util.List;
+import java.util.OptionalInt;
 import java.util.Set;
 
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static com.google.common.collect.ImmutableSet.toImmutableSet;
 import static io.trino.plugin.deltalake.DeltaLakeCdfPageSink.CHANGE_DATA_FOLDER_NAME;
+import static io.trino.plugin.deltalake.DeltaLakeCdfPageSink.CHANGE_TYPE_COLUMN_NAME;
 import static io.trino.plugin.deltalake.DeltaLakeColumnType.PARTITION_KEY;
 import static io.trino.plugin.deltalake.DeltaLakeColumnType.REGULAR;
 import static io.trino.plugin.deltalake.transactionlog.DeltaLakeSchemaSupport.changeDataFeedEnabled;
 import static io.trino.plugin.deltalake.transactionlog.DeltaLakeSchemaSupport.extractSchema;
+import static io.trino.spi.type.VarcharType.VARCHAR;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 
@@ -90,6 +94,7 @@ public class DeltaLakePageSinkProvider
     {
         DeltaLakeOutputTableHandle tableHandle = (DeltaLakeOutputTableHandle) outputTableHandle;
         return new DeltaLakePageSink(
+                typeManager.getTypeOperators(),
                 tableHandle.getInputColumns(),
                 tableHandle.getPartitionedBy(),
                 pageIndexerFactory,
@@ -107,6 +112,7 @@ public class DeltaLakePageSinkProvider
     {
         DeltaLakeInsertTableHandle tableHandle = (DeltaLakeInsertTableHandle) insertTableHandle;
         return new DeltaLakePageSink(
+                typeManager.getTypeOperators(),
                 tableHandle.getInputColumns(),
                 tableHandle.getMetadataEntry().getOriginalPartitionColumns(),
                 pageIndexerFactory,
@@ -127,6 +133,7 @@ public class DeltaLakePageSinkProvider
             case OPTIMIZE:
                 DeltaTableOptimizeHandle optimizeHandle = (DeltaTableOptimizeHandle) executeHandle.getProcedureHandle();
                 return new DeltaLakePageSink(
+                        typeManager.getTypeOperators(),
                         optimizeHandle.getTableColumns(),
                         optimizeHandle.getOriginalPartitionColumns(),
                         pageIndexerFactory,
@@ -150,6 +157,7 @@ public class DeltaLakePageSinkProvider
         ConnectorPageSink pageSink = createPageSink(transactionHandle, session, tableHandle, pageSinkId);
 
         return new DeltaLakeMergeSink(
+                typeManager.getTypeOperators(),
                 fileSystemFactory,
                 session,
                 parquetDateTimeZone,
@@ -171,7 +179,7 @@ public class DeltaLakePageSinkProvider
     {
         MetadataEntry metadataEntry = mergeTableHandle.getTableHandle().getMetadataEntry();
         Set<String> partitionKeys = mergeTableHandle.getTableHandle().getMetadataEntry().getOriginalPartitionColumns().stream().collect(toImmutableSet());
-        List<DeltaLakeColumnHandle> allColumns = extractSchema(metadataEntry, typeManager).stream()
+        List<DeltaLakeColumnHandle> tableColumns = extractSchema(metadataEntry, typeManager).stream()
                 .map(metadata -> new DeltaLakeColumnHandle(
                         metadata.getName(),
                         metadata.getType(),
@@ -180,8 +188,19 @@ public class DeltaLakePageSinkProvider
                         metadata.getPhysicalColumnType(),
                         partitionKeys.contains(metadata.getName()) ? PARTITION_KEY : REGULAR))
                 .collect(toImmutableList());
+        List<DeltaLakeColumnHandle> allColumns = ImmutableList.<DeltaLakeColumnHandle>builder()
+                .addAll(tableColumns)
+                .add(new DeltaLakeColumnHandle(
+                        CHANGE_TYPE_COLUMN_NAME,
+                        VARCHAR,
+                        OptionalInt.empty(),
+                        CHANGE_TYPE_COLUMN_NAME,
+                        VARCHAR,
+                        REGULAR))
+                .build();
 
         return new DeltaLakeCdfPageSink(
+                typeManager.getTypeOperators(),
                 allColumns,
                 metadataEntry.getOriginalPartitionColumns(),
                 pageIndexerFactory,

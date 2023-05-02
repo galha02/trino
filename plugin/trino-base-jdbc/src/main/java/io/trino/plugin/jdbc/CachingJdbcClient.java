@@ -23,6 +23,8 @@ import io.airlift.units.Duration;
 import io.trino.collect.cache.EvictableCacheBuilder;
 import io.trino.plugin.base.session.SessionPropertiesProvider;
 import io.trino.plugin.jdbc.IdentityCacheMapping.IdentityCacheKey;
+import io.trino.plugin.jdbc.JdbcProcedureHandle.ProcedureQuery;
+import io.trino.plugin.jdbc.expression.ParameterizedExpression;
 import io.trino.spi.TrinoException;
 import io.trino.spi.connector.AggregateFunction;
 import io.trino.spi.connector.ColumnHandle;
@@ -45,6 +47,7 @@ import org.weakref.jmx.Nested;
 
 import javax.inject.Inject;
 
+import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -83,6 +86,7 @@ public class CachingJdbcClient
     private final Cache<TableNamesCacheKey, List<SchemaTableName>> tableNamesCache;
     private final Cache<TableHandlesByNameCacheKey, Optional<JdbcTableHandle>> tableHandlesByNameCache;
     private final Cache<TableHandlesByQueryCacheKey, JdbcTableHandle> tableHandlesByQueryCache;
+    private final Cache<ProcedureHandlesByQueryCacheKey, JdbcProcedureHandle> procedureHandlesByQueryCache;
     private final Cache<ColumnsCacheKey, List<JdbcColumnHandle>> columnsCache;
     private final Cache<JdbcTableHandle, TableStatistics> statisticsCache;
 
@@ -93,7 +97,15 @@ public class CachingJdbcClient
             IdentityCacheMapping identityMapping,
             BaseJdbcConfig config)
     {
-        this(delegate, sessionPropertiesProviders, identityMapping, config.getMetadataCacheTtl(), config.isCacheMissing(), config.getCacheMaximumSize());
+        this(
+                delegate,
+                sessionPropertiesProviders,
+                identityMapping,
+                config.getMetadataCacheTtl(),
+                config.getSchemaNamesCacheTtl(),
+                config.getTableNamesCacheTtl(),
+                config.isCacheMissing(),
+                config.getCacheMaximumSize());
     }
 
     public CachingJdbcClient(
@@ -104,6 +116,26 @@ public class CachingJdbcClient
             boolean cacheMissing,
             long cacheMaximumSize)
     {
+        this(delegate,
+                sessionPropertiesProviders,
+                identityMapping,
+                metadataCachingTtl,
+                metadataCachingTtl,
+                metadataCachingTtl,
+                cacheMissing,
+                cacheMaximumSize);
+    }
+
+    public CachingJdbcClient(
+            JdbcClient delegate,
+            Set<SessionPropertiesProvider> sessionPropertiesProviders,
+            IdentityCacheMapping identityMapping,
+            Duration metadataCachingTtl,
+            Duration schemaNamesCachingTtl,
+            Duration tableNamesCachingTtl,
+            boolean cacheMissing,
+            long cacheMaximumSize)
+    {
         this.delegate = requireNonNull(delegate, "delegate is null");
         this.sessionProperties = sessionPropertiesProviders.stream()
                 .flatMap(provider -> provider.getSessionProperties().stream())
@@ -111,25 +143,28 @@ public class CachingJdbcClient
         this.cacheMissing = cacheMissing;
         this.identityMapping = requireNonNull(identityMapping, "identityMapping is null");
 
-        EvictableCacheBuilder<Object, Object> cacheBuilder = EvictableCacheBuilder.newBuilder()
-                .expireAfterWrite(metadataCachingTtl.toMillis(), MILLISECONDS)
+        long cacheSize = metadataCachingTtl.equals(CACHING_DISABLED)
+                // Disables the cache entirely
+                ? 0
+                : cacheMaximumSize;
+
+        schemaNamesCache = buildCache(cacheSize, schemaNamesCachingTtl);
+        tableNamesCache = buildCache(cacheSize, tableNamesCachingTtl);
+        tableHandlesByNameCache = buildCache(cacheSize, metadataCachingTtl);
+        tableHandlesByQueryCache = buildCache(cacheSize, metadataCachingTtl);
+        procedureHandlesByQueryCache = buildCache(cacheSize, metadataCachingTtl);
+        columnsCache = buildCache(cacheSize, metadataCachingTtl);
+        statisticsCache = buildCache(cacheSize, metadataCachingTtl);
+    }
+
+    private static <K, V> Cache<K, V> buildCache(long cacheSize, Duration cachingTtl)
+    {
+        return EvictableCacheBuilder.newBuilder()
+                .maximumSize(cacheSize)
+                .expireAfterWrite(cachingTtl.toMillis(), MILLISECONDS)
                 .shareNothingWhenDisabled()
-                .recordStats();
-
-        if (metadataCachingTtl.equals(CACHING_DISABLED)) {
-            // Disables the cache entirely
-            cacheBuilder.maximumSize(0);
-        }
-        else {
-            cacheBuilder.maximumSize(cacheMaximumSize);
-        }
-
-        schemaNamesCache = cacheBuilder.build();
-        tableNamesCache = cacheBuilder.build();
-        tableHandlesByNameCache = cacheBuilder.build();
-        tableHandlesByQueryCache = cacheBuilder.build();
-        columnsCache = cacheBuilder.build();
-        statisticsCache = cacheBuilder.build();
+                .recordStats()
+                .build();
     }
 
     @Override
@@ -194,7 +229,7 @@ public class CachingJdbcClient
     }
 
     @Override
-    public Optional<String> convertPredicate(ConnectorSession session, ConnectorExpression expression, Map<String, ColumnHandle> assignments)
+    public Optional<ParameterizedExpression> convertPredicate(ConnectorSession session, ConnectorExpression expression, Map<String, ColumnHandle> assignments)
     {
         return delegate.convertPredicate(session, expression, assignments);
     }
@@ -206,10 +241,23 @@ public class CachingJdbcClient
     }
 
     @Override
+    public ConnectorSplitSource getSplits(ConnectorSession session, JdbcProcedureHandle procedureHandle)
+    {
+        return delegate.getSplits(session, procedureHandle);
+    }
+
+    @Override
     public Connection getConnection(ConnectorSession session, JdbcSplit split, JdbcTableHandle tableHandle)
             throws SQLException
     {
         return delegate.getConnection(session, split, tableHandle);
+    }
+
+    @Override
+    public Connection getConnection(ConnectorSession session, JdbcSplit split, JdbcProcedureHandle procedureHandle)
+            throws SQLException
+    {
+        return delegate.getConnection(session, split, procedureHandle);
     }
 
     @Override
@@ -225,7 +273,7 @@ public class CachingJdbcClient
             JdbcTableHandle table,
             Optional<List<List<JdbcColumnHandle>>> groupingSets,
             List<JdbcColumnHandle> columns,
-            Map<String, String> columnExpressions)
+            Map<String, ParameterizedExpression> columnExpressions)
     {
         return delegate.prepareQuery(session, table, groupingSets, columns, columnExpressions);
     }
@@ -235,6 +283,13 @@ public class CachingJdbcClient
             throws SQLException
     {
         return delegate.buildSql(session, connection, split, table, columns);
+    }
+
+    @Override
+    public CallableStatement buildProcedure(ConnectorSession session, Connection connection, JdbcSplit split, JdbcProcedureHandle procedureHandle)
+            throws SQLException
+    {
+        return delegate.buildProcedure(session, connection, split, procedureHandle);
     }
 
     @Override
@@ -298,6 +353,13 @@ public class CachingJdbcClient
     }
 
     @Override
+    public JdbcProcedureHandle getProcedureHandle(ConnectorSession session, ProcedureQuery procedureQuery)
+    {
+        ProcedureHandlesByQueryCacheKey key = new ProcedureHandlesByQueryCacheKey(getIdentityKey(session), procedureQuery);
+        return get(procedureHandlesByQueryCache, key, () -> delegate.getProcedureHandle(session, procedureQuery));
+    }
+
+    @Override
     public void commitCreateTable(ConnectorSession session, JdbcOutputTableHandle handle, Set<Long> pageSinkIds)
     {
         delegate.commitCreateTable(session, handle, pageSinkIds);
@@ -350,10 +412,10 @@ public class CachingJdbcClient
     }
 
     @Override
-    public PreparedStatement getPreparedStatement(Connection connection, String sql)
+    public PreparedStatement getPreparedStatement(Connection connection, String sql, Optional<Integer> columnCount)
             throws SQLException
     {
-        return delegate.getPreparedStatement(connection, sql);
+        return delegate.getPreparedStatement(connection, sql, columnCount);
     }
 
     @Override
@@ -584,6 +646,12 @@ public class CachingJdbcClient
     }
 
     @VisibleForTesting
+    CacheStats getSchemaNamesCacheStats()
+    {
+        return schemaNamesCache.stats();
+    }
+
+    @VisibleForTesting
     CacheStats getTableNamesCacheStats()
     {
         return tableNamesCache.stats();
@@ -599,6 +667,12 @@ public class CachingJdbcClient
     CacheStats getTableHandlesByQueryCacheStats()
     {
         return tableHandlesByQueryCache.stats();
+    }
+
+    @VisibleForTesting
+    CacheStats getProcedureHandlesByQueryCacheStats()
+    {
+        return procedureHandlesByQueryCache.stats();
     }
 
     @VisibleForTesting
@@ -648,6 +722,15 @@ public class CachingJdbcClient
         {
             requireNonNull(identity, "identity is null");
             requireNonNull(preparedQuery, "preparedQuery is null");
+        }
+    }
+
+    private record ProcedureHandlesByQueryCacheKey(IdentityCacheKey identity, ProcedureQuery procedureQuery)
+    {
+        private ProcedureHandlesByQueryCacheKey
+        {
+            requireNonNull(identity, "identity is null");
+            requireNonNull(procedureQuery, "procedureQuery is null");
         }
     }
 

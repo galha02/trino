@@ -38,6 +38,7 @@ import io.airlift.log.Logger;
 import io.airlift.node.NodeModule;
 import io.airlift.openmetrics.JmxOpenMetricsModule;
 import io.airlift.tracetoken.TraceTokenModule;
+import io.airlift.tracing.TracingModule;
 import io.trino.client.NodeVersion;
 import io.trino.connector.CatalogManagerConfig;
 import io.trino.connector.CatalogManagerConfig.CatalogMangerKind;
@@ -112,6 +113,7 @@ public class Server
                 new JmxOpenMetricsModule(),
                 new LogJmxModule(),
                 new TraceTokenModule(),
+                new TracingModule("trino", trinoVersion),
                 new EventModule(),
                 new JsonEventModule(),
                 new ServerSecurityModule(),
@@ -136,7 +138,7 @@ public class Server
             logLocation(log, "Working directory", Paths.get("."));
             logLocation(log, "Etc directory", Paths.get("etc"));
 
-            injector.getInstance(PluginManager.class).loadPlugins();
+            injector.getInstance(PluginInstaller.class).loadPlugins();
 
             ConnectorServicesProvider connectorServicesProvider = injector.getInstance(ConnectorServicesProvider.class);
             connectorServicesProvider.loadInitialCatalogs();

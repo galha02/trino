@@ -862,17 +862,7 @@ public abstract class AstVisitor<R, C>
         return visitNode(node, context);
     }
 
-    protected R visitCube(Cube node, C context)
-    {
-        return visitGroupingElement(node, context);
-    }
-
     protected R visitGroupingSets(GroupingSets node, C context)
-    {
-        return visitGroupingElement(node, context);
-    }
-
-    protected R visitRollup(Rollup node, C context)
     {
         return visitGroupingElement(node, context);
     }
@@ -1157,9 +1147,19 @@ public abstract class AstVisitor<R, C>
         return visitExpression(node, context);
     }
 
+    protected R visitJsonObjectMember(JsonObjectMember node, C context)
+    {
+        return visitNode(node, context);
+    }
+
     protected R visitJsonArray(JsonArray node, C context)
     {
         return visitExpression(node, context);
+    }
+
+    protected R visitJsonArrayElement(JsonArrayElement node, C context)
+    {
+        return visitNode(node, context);
     }
 
     protected R visitEmptyTableTreatment(EmptyTableTreatment node, C context)
