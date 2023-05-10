@@ -28,6 +28,7 @@ import java.util.stream.Stream;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static io.trino.tempto.assertions.QueryAssert.Row.row;
+import static io.trino.tempto.assertions.QueryAssert.anyOf;
 import static io.trino.tempto.assertions.QueryAssert.assertQueryFailure;
 import static io.trino.tempto.assertions.QueryAssert.assertThat;
 import static io.trino.testing.TestingNames.randomNameSuffix;
@@ -382,8 +383,8 @@ public class TestDeltaLakeDatabricksInsertCompatibility
         assertThat(onTrino().executeQuery("SHOW SESSION LIKE 'delta.compression_codec'"))
                 .containsOnly(row(
                         "delta.compression_codec",
-                        "SNAPPY",
-                        "SNAPPY",
+                        anyOf("SNAPPY", "ZSTD"),
+                        anyOf("SNAPPY", "ZSTD"),
                         "varchar",
                         "Compression codec to use when writing new data files. Possible values: " +
                                 Stream.of(compressionCodecs())

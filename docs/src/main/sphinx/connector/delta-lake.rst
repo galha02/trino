@@ -104,7 +104,7 @@ values. Typical usage does not require you to configure them.
         * ``SNAPPY``
         * ``ZSTD``
         * ``GZIP``
-      - ``SNAPPY``
+      - ``ZSTD``
     * - ``delta.max-partitions-per-writer``
       - Maximum number of partitions per writer.
       - ``100``

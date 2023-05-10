@@ -43,6 +43,11 @@ public abstract class AbstractSinglenodeDeltaLakeDatabricks
 
     abstract String databricksTestJdbcUrl();
 
+    protected String dockerFilesHostDirectory()
+    {
+        return "conf/environment/singlenode-delta-lake-databricks";
+    }
+
     @Override
     public void extendEnvironment(Environment.Builder builder)
     {
@@ -51,7 +56,7 @@ public abstract class AbstractSinglenodeDeltaLakeDatabricks
         String databricksTestToken = requireNonNull(System.getenv("DATABRICKS_TOKEN"), "Environment DATABRICKS_TOKEN was not set");
         String awsRegion = requireNonNull(System.getenv("AWS_REGION"), "Environment AWS_REGION was not set");
         String s3Bucket = requireNonNull(System.getenv("S3_BUCKET"), "Environment S3_BUCKET was not set");
-        DockerFiles.ResourceProvider configDir = dockerFiles.getDockerFilesHostDirectory("conf/environment/singlenode-delta-lake-databricks");
+        DockerFiles.ResourceProvider configDir = dockerFiles.getDockerFilesHostDirectory(dockerFilesHostDirectory());
 
         builder.configureContainer(COORDINATOR, dockerContainer -> exportAWSCredentials(dockerContainer)
                 .withEnv("AWS_REGION", awsRegion)

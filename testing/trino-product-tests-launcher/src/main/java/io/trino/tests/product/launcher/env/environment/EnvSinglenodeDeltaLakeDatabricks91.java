@@ -35,4 +35,10 @@ public class EnvSinglenodeDeltaLakeDatabricks91
     {
         return requireNonNull(System.getenv("DATABRICKS_91_JDBC_URL"), "Environment DATABRICKS_91_JDBC_URL was not set");
     }
+
+    @Override
+    protected String dockerFilesHostDirectory()
+    {
+        return "conf/environment/singlenode-delta-lake-databricks-snappy";
+    }
 }
