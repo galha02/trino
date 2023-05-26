@@ -279,13 +279,13 @@ Cumulative distribution functions
     The mean and value v must be real values and the standard deviation must be a real
     and positive value.
 
-.. function:: chiSquaredCdf(df, value) -> double
+.. function:: chi_squared_cdf(df, value) -> double
 
     Compute the Chi-square cumulative distribution function with given df (degrees of freedom) 
     parameter: P(N < value; df). The df parameter must be a positive real number, and value 
     must be a non-negative real value (both of type DOUBLE).
 
-.. function:: inverseChiSquaredCdf(df, p) -> double
+.. function:: inverse_chi_squared_cdf(df, p) -> double
 
     Compute the inverse of the Chi-square cumulative distribution function with given df 
     (degrees of freedom) parameter for the cumulative probability (p): P(N < n). The df 
