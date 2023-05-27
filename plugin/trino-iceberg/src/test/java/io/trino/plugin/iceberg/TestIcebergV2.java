@@ -43,6 +43,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
@@ -200,6 +201,11 @@ public class TestIcebergV2
         assertQuery("SELECT * FROM " + tableName, "SELECT * FROM nation WHERE regionkey != 1");
         // nationkey is before the equality delete column in the table schema, comment is after
         assertQuery("SELECT nationkey, comment FROM " + tableName, "SELECT nationkey, comment FROM nation WHERE regionkey != 1");
+
+        assertUpdate("INSERT INTO " + tableName + " SELECT * FROM tpch.tiny.nation", 25);
+        writeEqualityDeleteToNationTable(icebergTable, Optional.of(icebergTable.spec()), Optional.of(new PartitionData(new Long[]{2L})), ImmutableMap.of("regionkey", 2L));
+        // the equality delete file is applied to 2 data files
+        assertQuery("SELECT count(*) FROM \"" + tableName + "$files\" WHERE content = " + FileContent.EQUALITY_DELETES.id(), "VALUES 2");
     }
 
     @Test
@@ -333,6 +339,28 @@ public class TestIcebergV2
                 .doesNotContain(initialActiveFiles.stream()
                                 .filter(path -> !path.contains("regionkey=1"))
                                 .toArray(String[]::new));
+    }
+
+    @Test
+    public void testOptimizingWholeTableRemovesDeleteFiles()
+            throws Exception
+    {
+        String tableName = "test_optimize_removes_obsolete_delete_files_" + randomNameSuffix();
+        assertUpdate("CREATE TABLE " + tableName + " AS SELECT * FROM tpch.tiny.nation", 25);
+
+        assertUpdate("DELETE FROM " + tableName + " WHERE regionkey % 2 = 0", 15);
+        Table icebergTable = updateTableToV2(tableName);
+        writeEqualityDeleteToNationTable(icebergTable, Optional.of(icebergTable.spec()), Optional.of(new PartitionData(new Long[]{1L})));
+
+        assertQuery("SELECT count(*) FROM \"" + tableName + "$files\" WHERE content = " + FileContent.POSITION_DELETES.id(), "VALUES 1");
+        assertQuery("SELECT count(*) FROM \"" + tableName + "$files\" WHERE content = " + FileContent.EQUALITY_DELETES.id(), "VALUES 1");
+
+        assertQuerySucceeds("ALTER TABLE " + tableName + " EXECUTE OPTIMIZE");
+
+        assertQuery("SELECT count(*) FROM \"" + tableName + "$files\" WHERE content = " + FileContent.POSITION_DELETES.id(), "VALUES 0");
+        assertQuery("SELECT count(*) FROM \"" + tableName + "$files\" WHERE content = " + FileContent.EQUALITY_DELETES.id(), "VALUES 0");
+
+        assertUpdate("DROP TABLE " + tableName);
     }
 
     @Test
@@ -538,8 +566,6 @@ public class TestIcebergV2
                 .withEncryptionKeyMetadata(ByteBuffer.wrap("Trino".getBytes(UTF_8)))
                 .build();
         table.newAppend().appendFile(dataFile).commit();
-        // TODO Currently, Trino does not include equality delete files stats in the $files table.
-        //  Once it is fixed by https://github.com/trinodb/trino/pull/16232, include equality delete output in the test.
         writeEqualityDeleteToNationTable(table);
         assertQuery(
                 "SELECT " +
@@ -581,7 +607,19 @@ public class TestIcebergV2
                                         JSON '{"1":"4"}',
                                         X'54 72 69 6e 6f',
                                         ARRAY[4L],
-                                        null)
+                                        null),
+                                        (2,
+                                        'PARQUET',
+                                        1L,
+                                        JSON '{"3":52}',
+                                        JSON '{"3":1}',
+                                        JSON '{"3":0}',
+                                        JSON '{}',
+                                        JSON '{"3":"1"}',
+                                        JSON '{"3":"1"}',
+                                        null,
+                                        null,
+                                        ARRAY[3])
                         """);
     }
 
@@ -680,7 +718,8 @@ public class TestIcebergV2
     private void writeEqualityDeleteToNationTable(Table icebergTable, Optional<PartitionSpec> partitionSpec, Optional<PartitionData> partitionData, Map<String, Object> overwriteValues)
             throws Exception
     {
-        Path metadataDir = new Path(metastoreDir.toURI());
+        Path tableLocation = new Path(icebergTable.currentSnapshot().manifestListLocation()).getParent().getParent();
+        Path dataDirectory = new Path(tableLocation, "data");
         String deleteFileName = "delete_file_" + UUID.randomUUID();
         TrinoFileSystem fs = HDFS_FILE_SYSTEM_FACTORY.create(SESSION);
 
@@ -688,7 +727,7 @@ public class TestIcebergV2
         List<Integer> equalityFieldIds = overwriteValues.keySet().stream()
                 .map(name -> deleteRowSchema.findField(name).fieldId())
                 .collect(toImmutableList());
-        Parquet.DeleteWriteBuilder writerBuilder = Parquet.writeDeletes(new ForwardingFileIo(fs).newOutputFile(new Path(metadataDir, deleteFileName).toString()))
+        Parquet.DeleteWriteBuilder writerBuilder = Parquet.writeDeletes(new ForwardingFileIo(fs).newOutputFile(new Path(dataDirectory, deleteFileName).toString()))
                 .forTable(icebergTable)
                 .rowSchema(deleteRowSchema)
                 .createWriterFunc(GenericParquetWriter::buildWriter)
@@ -739,7 +778,7 @@ public class TestIcebergV2
 
     private List<String> getActiveFiles(String tableName)
     {
-        return computeActual(format("SELECT file_path FROM \"%s$files\"", tableName)).getOnlyColumn()
+        return computeActual(format("SELECT file_path FROM \"%s$files\" WHERE content = %d", tableName, FileContent.DATA.id())).getOnlyColumn()
                 .map(String.class::cast)
                 .collect(toImmutableList());
     }
