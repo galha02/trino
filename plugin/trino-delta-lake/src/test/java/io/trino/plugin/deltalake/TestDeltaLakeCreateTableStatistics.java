@@ -94,13 +94,13 @@ public class TestDeltaLakeCreateTableStatistics
             assertEquals(fileStatistics.getNumRecords(), Optional.of(2L));
             assertEquals(fileStatistics.getMinColumnValue(columnHandle), Optional.of(utf8Slice("foo")));
             assertEquals(fileStatistics.getMaxColumnValue(columnHandle), Optional.of(utf8Slice("moo")));
-            assertEquals(fileStatistics.getNullCount("d"), Optional.of(0L));
+            assertEquals(fileStatistics.getNullCount(columnHandle), Optional.of(0L));
 
             for (String complexColumn : ImmutableList.of("a", "b", "c")) {
                 columnHandle = new DeltaLakeColumnHandle(complexColumn, createUnboundedVarcharType(), OptionalInt.empty(), complexColumn, createUnboundedVarcharType(), REGULAR, Optional.empty());
                 assertThat(fileStatistics.getMaxColumnValue(columnHandle)).isEmpty();
                 assertThat(fileStatistics.getMinColumnValue(columnHandle)).isEmpty();
-                assertThat(fileStatistics.getNullCount(complexColumn)).isEmpty();
+                assertThat(fileStatistics.getNullCount(columnHandle)).isEmpty();
             }
         }
     }
@@ -126,7 +126,7 @@ public class TestDeltaLakeCreateTableStatistics
             assertEquals(fileStatistics.getNumRecords(), Optional.of(2L));
             assertEquals(fileStatistics.getMinColumnValue(columnHandle), Optional.empty());
             assertEquals(fileStatistics.getMaxColumnValue(columnHandle), Optional.empty());
-            assertEquals(fileStatistics.getNullCount(columnName), Optional.empty());
+            assertEquals(fileStatistics.getNullCount(columnHandle), Optional.empty());
         }
     }
 
@@ -148,7 +148,7 @@ public class TestDeltaLakeCreateTableStatistics
             assertEquals(fileStatistics.getNumRecords(), Optional.of(3L));
             assertEquals(fileStatistics.getMinColumnValue(columnHandle), Optional.of(NEGATIVE_INFINITY));
             assertEquals(fileStatistics.getMaxColumnValue(columnHandle), Optional.of(POSITIVE_INFINITY));
-            assertEquals(fileStatistics.getNullCount(columnName), Optional.of(0L));
+            assertEquals(fileStatistics.getNullCount(columnHandle), Optional.of(0L));
         }
     }
 
@@ -170,7 +170,7 @@ public class TestDeltaLakeCreateTableStatistics
             assertEquals(fileStatistics.getNumRecords(), Optional.of(4L));
             assertEquals(fileStatistics.getMinColumnValue(columnHandle), Optional.empty());
             assertEquals(fileStatistics.getMaxColumnValue(columnHandle), Optional.empty());
-            assertEquals(fileStatistics.getNullCount(columnName), Optional.empty());
+            assertEquals(fileStatistics.getNullCount(columnHandle), Optional.empty());
         }
     }
 
@@ -192,7 +192,7 @@ public class TestDeltaLakeCreateTableStatistics
             assertEquals(fileStatistics.getNumRecords(), Optional.of(4L));
             assertEquals(fileStatistics.getMinColumnValue(columnHandle), Optional.empty());
             assertEquals(fileStatistics.getMaxColumnValue(columnHandle), Optional.empty());
-            assertEquals(fileStatistics.getNullCount(columnName), Optional.empty());
+            assertEquals(fileStatistics.getNullCount(columnHandle), Optional.empty());
         }
     }
 
@@ -214,7 +214,7 @@ public class TestDeltaLakeCreateTableStatistics
             assertEquals(fileStatistics.getNumRecords(), Optional.of(4L));
             assertEquals(fileStatistics.getMinColumnValue(columnHandle), Optional.empty());
             assertEquals(fileStatistics.getMaxColumnValue(columnHandle), Optional.empty());
-            assertEquals(fileStatistics.getNullCount(columnName), Optional.empty());
+            assertEquals(fileStatistics.getNullCount(columnHandle), Optional.empty());
         }
     }
 
@@ -270,7 +270,7 @@ public class TestDeltaLakeCreateTableStatistics
             }
             assertEquals(fileStatistics.getMinColumnValue(columnHandle), expectedMin);
             assertEquals(fileStatistics.getMaxColumnValue(columnHandle), expectedMax);
-            assertEquals(fileStatistics.getNullCount(columnName), Optional.of(0L));
+            assertEquals(fileStatistics.getNullCount(columnHandle), Optional.of(0L));
         }
     }
 
@@ -289,7 +289,7 @@ public class TestDeltaLakeCreateTableStatistics
             assertEquals(fileStatistics.getNumRecords(), Optional.of(4L));
             assertEquals(fileStatistics.getMinColumnValue(columnHandle), Optional.of(0.0));
             assertEquals(fileStatistics.getMaxColumnValue(columnHandle), Optional.of(1.0));
-            assertEquals(fileStatistics.getNullCount(columnName), Optional.of(2L));
+            assertEquals(fileStatistics.getNullCount(columnHandle), Optional.of(2L));
         }
     }
 
@@ -311,7 +311,7 @@ public class TestDeltaLakeCreateTableStatistics
             assertEquals(fileStatistics.getNumRecords(), Optional.of(4L));
             assertEquals(fileStatistics.getMinColumnValue(columnHandle), Optional.empty());
             assertEquals(fileStatistics.getMaxColumnValue(columnHandle), Optional.empty());
-            assertEquals(fileStatistics.getNullCount(columnName), Optional.of(4L));
+            assertEquals(fileStatistics.getNullCount(columnHandle), Optional.of(4L));
         }
     }
 
@@ -333,7 +333,7 @@ public class TestDeltaLakeCreateTableStatistics
             assertEquals(fileStatistics.getNumRecords(), Optional.of(4L));
             assertEquals(fileStatistics.getMinColumnValue(columnHandle), Optional.of(LocalDate.parse("2011-08-08").toEpochDay()));
             assertEquals(fileStatistics.getMaxColumnValue(columnHandle), Optional.of(LocalDate.parse("2013-08-09").toEpochDay()));
-            assertEquals(fileStatistics.getNullCount(columnName), Optional.of(0L));
+            assertEquals(fileStatistics.getNullCount(columnHandle), Optional.of(0L));
         }
     }
 
@@ -359,7 +359,7 @@ public class TestDeltaLakeCreateTableStatistics
             assertEquals(
                     fileStatistics.getMaxColumnValue(columnHandle),
                     Optional.of(packDateTimeWithZone(ZonedDateTime.parse("2012-10-31T08:00:00.123Z").toInstant().toEpochMilli(), UTC_KEY)));
-            assertEquals(fileStatistics.getNullCount(columnName), Optional.of(0L));
+            assertEquals(fileStatistics.getNullCount(columnHandle), Optional.of(0L));
         }
     }
 
@@ -378,7 +378,7 @@ public class TestDeltaLakeCreateTableStatistics
             assertEquals(fileStatistics.getNumRecords(), Optional.of(2L));
             assertEquals(fileStatistics.getMinColumnValue(columnHandle), Optional.of(utf8Slice("ab\uFAD8")));
             assertEquals(fileStatistics.getMaxColumnValue(columnHandle), Optional.of(utf8Slice("ab\uD83D\uDD74")));
-            assertEquals(fileStatistics.getNullCount(columnName), Optional.of(0L));
+            assertEquals(fileStatistics.getNullCount(columnHandle), Optional.of(0L));
         }
     }
 
@@ -405,13 +405,13 @@ public class TestDeltaLakeCreateTableStatistics
                     assertEquals(fileStatistics.getMinColumnValue(columnHandle), Optional.of(utf8Slice("a")));
                     assertEquals(fileStatistics.getMaxColumnValue(columnHandle), Optional.of(utf8Slice("c")));
                     assertEquals(fileStatistics.getNumRecords(), Optional.of(4L));
-                    assertEquals(fileStatistics.getNullCount(columnName), Optional.of(1L));
+                    assertEquals(fileStatistics.getNullCount(columnHandle), Optional.of(1L));
                 }
                 else if (addFileEntry.getPartitionValues().get(partitionColumn).equals("2")) {
                     assertEquals(fileStatistics.getMinColumnValue(columnHandle), Optional.of(utf8Slice("c")));
                     assertEquals(fileStatistics.getMaxColumnValue(columnHandle), Optional.of(utf8Slice("e")));
                     assertEquals(fileStatistics.getNumRecords(), Optional.of(3L));
-                    assertEquals(fileStatistics.getNullCount(columnName), Optional.of(0L));
+                    assertEquals(fileStatistics.getNullCount(columnHandle), Optional.of(0L));
                 }
             }
         }

@@ -45,6 +45,7 @@ import static com.google.common.collect.ImmutableSet.toImmutableSet;
 import static io.trino.plugin.deltalake.DeltaLakeColumnType.PARTITION_KEY;
 import static io.trino.plugin.deltalake.DeltaLakeColumnType.REGULAR;
 import static io.trino.plugin.deltalake.DeltaLakeMetadata.createStatisticsPredicate;
+import static io.trino.plugin.deltalake.DeltaLakeMetadata.toColumnHandle;
 import static io.trino.plugin.deltalake.DeltaLakeSessionProperties.isExtendedStatisticsEnabled;
 import static io.trino.plugin.deltalake.DeltaLakeSplitManager.partitionMatchesPredicate;
 import static io.trino.spi.statistics.StatsUtil.toStatsRepresentation;
@@ -107,8 +108,9 @@ public class FileBasedTableStatisticsProvider
                 .filter(DeltaLakeColumnHandle::isBaseColumn)
                 .map(DeltaLakeColumnHandle::getBaseColumnName)
                 .collect(toImmutableSet());
-        List<DeltaLakeColumnMetadata> predicatedColumns = columnMetadata.stream()
+        List<DeltaLakeColumnHandle> predicatedColumns = columnMetadata.stream()
                 .filter(column -> predicatedColumnNames.contains(column.getName()))
+                .map(column -> toColumnHandle(column.getColumnMetadata(), column.getFieldId(), column.getPhysicalName(), column.getPhysicalColumnType(), tableHandle.getMetadataEntry().getCanonicalPartitionColumns()))
                 .collect(toImmutableList());
 
         for (AddFileEntry addEntry : transactionLogAccess.getActiveFiles(tableSnapshot, session)) {
@@ -124,8 +126,7 @@ public class FileBasedTableStatisticsProvider
 
             TupleDomain<DeltaLakeColumnHandle> statisticsPredicate = createStatisticsPredicate(
                     addEntry,
-                    predicatedColumns,
-                    tableHandle.getMetadataEntry().getCanonicalPartitionColumns());
+                    predicatedColumns);
             if (!tableHandle.getNonPartitionConstraint().overlaps(statisticsPredicate)) {
                 continue;
             }
@@ -149,7 +150,7 @@ public class FileBasedTableStatisticsProvider
                     }
                 }
                 else {
-                    Optional<Long> maybeNullCount = column.isBaseColumn() ? stats.getNullCount(column.getBasePhysicalColumnName()) : Optional.empty();
+                    Optional<Long> maybeNullCount = column.isBaseColumn() ? stats.getNullCount(column) : Optional.empty();
                     if (maybeNullCount.isPresent()) {
                         nullCounts.put(column, nullCounts.get(column) + maybeNullCount.get());
                     }
