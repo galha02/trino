@@ -52,6 +52,7 @@ import static com.google.common.base.Strings.isNullOrEmpty;
 import static com.google.common.collect.ImmutableMap.toImmutableMap;
 import static io.trino.client.KerberosUtil.defaultCredentialCachePath;
 import static io.trino.client.OkHttpUtil.basicAuth;
+import static io.trino.client.OkHttpUtil.extraHeaders;
 import static io.trino.client.OkHttpUtil.setupAlternateHostnameVerification;
 import static io.trino.client.OkHttpUtil.setupCookieJar;
 import static io.trino.client.OkHttpUtil.setupHttpProxy;
@@ -74,6 +75,7 @@ import static io.trino.client.uri.ConnectionProperties.EXTERNAL_AUTHENTICATION_R
 import static io.trino.client.uri.ConnectionProperties.EXTERNAL_AUTHENTICATION_TIMEOUT;
 import static io.trino.client.uri.ConnectionProperties.EXTERNAL_AUTHENTICATION_TOKEN_CACHE;
 import static io.trino.client.uri.ConnectionProperties.EXTRA_CREDENTIALS;
+import static io.trino.client.uri.ConnectionProperties.EXTRA_HEADERS;
 import static io.trino.client.uri.ConnectionProperties.HOSTNAME_IN_CERTIFICATE;
 import static io.trino.client.uri.ConnectionProperties.HTTP_PROXY;
 import static io.trino.client.uri.ConnectionProperties.KERBEROS_CONFIG_PATH;
@@ -161,6 +163,7 @@ public class TrinoUri
     private Optional<String> hostnameInCertificate;
     private Optional<String> clientInfo;
     private Optional<String> clientTags;
+    private Optional<Map<String, String>> extraHeaders;
     private Optional<String> traceToken;
     private Optional<Map<String, String>> sessionProperties;
     private Optional<String> source;
@@ -213,6 +216,7 @@ public class TrinoUri
             Optional<String> hostnameInCertificate,
             Optional<String> clientInfo,
             Optional<String> clientTags,
+            Optional<Map<String, String>> extraHeaders,
             Optional<String> traceToken,
             Optional<Map<String, String>> sessionProperties,
             Optional<String> source)
@@ -264,6 +268,7 @@ public class TrinoUri
         this.hostnameInCertificate = HOSTNAME_IN_CERTIFICATE.getValueOrDefault(urlProperties, hostnameInCertificate);
         this.clientInfo = CLIENT_INFO.getValueOrDefault(urlProperties, clientInfo);
         this.clientTags = CLIENT_TAGS.getValueOrDefault(urlProperties, clientTags);
+        this.extraHeaders = EXTRA_HEADERS.getValueOrDefault(urlProperties, extraHeaders);
         this.traceToken = TRACE_TOKEN.getValueOrDefault(urlProperties, traceToken);
         this.sessionProperties = SESSION_PROPERTIES.getValueOrDefault(urlProperties, sessionProperties);
         this.source = SOURCE.getValueOrDefault(urlProperties, source);
@@ -349,6 +354,12 @@ public class TrinoUri
         hostnameInCertificate.ifPresent(value -> properties.setProperty(PropertyName.HOSTNAME_IN_CERTIFICATE.toString(), value));
         clientInfo.ifPresent(value -> properties.setProperty(PropertyName.CLIENT_INFO.toString(), value));
         clientTags.ifPresent(value -> properties.setProperty(PropertyName.CLIENT_TAGS.toString(), value));
+        extraHeaders.ifPresent(value ->
+                properties.setProperty(
+                        PropertyName.EXTRA_HEADERS.toString(),
+                        value.entrySet().stream()
+                                .map(entry -> entry.getKey() + ":" + entry.getValue())
+                                .collect(Collectors.joining(";"))));
         traceToken.ifPresent(value -> properties.setProperty(PropertyName.TRACE_TOKEN.toString(), value));
         source.ifPresent(value -> properties.setProperty(PropertyName.SOURCE.toString(), value));
         return properties;
@@ -406,6 +417,7 @@ public class TrinoUri
         this.hostnameInCertificate = HOSTNAME_IN_CERTIFICATE.getValue(properties);
         this.clientInfo = CLIENT_INFO.getValue(properties);
         this.clientTags = CLIENT_TAGS.getValue(properties);
+        this.extraHeaders = EXTRA_HEADERS.getValue(properties);
         this.traceToken = TRACE_TOKEN.getValue(properties);
         this.sessionProperties = SESSION_PROPERTIES.getValue(properties);
         this.source = SOURCE.getValue(properties);
@@ -499,6 +511,11 @@ public class TrinoUri
     public Optional<String> getClientTags()
     {
         return clientTags;
+    }
+
+    public Optional<Map<String, String>> getExtraHeaders()
+    {
+        return extraHeaders;
     }
 
     public Optional<String> getTraceToken()
@@ -635,6 +652,10 @@ public class TrinoUri
                                 .orElseGet(() -> defaultCredentialCachePath().map(File::new).orElse(null))),
                         kerberosDelegation.orElse(false),
                         kerberosConstrainedDelegation);
+            }
+
+            if (extraHeaders.isPresent()) {
+                builder.addInterceptor(extraHeaders(extraHeaders.get()));
             }
 
             if (accessToken.isPresent()) {
@@ -911,6 +932,7 @@ public class TrinoUri
         private String hostnameInCertificate;
         private String clientInfo;
         private String clientTags;
+        private Map<String, String> extraHeaders;
         private String traceToken;
         private Map<String, String> sessionProperties;
         private String source;
@@ -1178,6 +1200,12 @@ public class TrinoUri
             return this;
         }
 
+        public Builder setExtraHeaders(Map<String, String> extraHeaders)
+        {
+            this.extraHeaders = requireNonNull(extraHeaders, "extraHeaders is null");
+            return this;
+        }
+
         public Builder setTraceToken(String traceToken)
         {
             this.traceToken = requireNonNull(traceToken, "traceToken is null");
@@ -1241,6 +1269,7 @@ public class TrinoUri
                     Optional.ofNullable(hostnameInCertificate),
                     Optional.ofNullable(clientInfo),
                     Optional.ofNullable(clientTags),
+                    Optional.ofNullable(extraHeaders),
                     Optional.ofNullable(traceToken),
                     Optional.ofNullable(sessionProperties),
                     Optional.ofNullable(source));
