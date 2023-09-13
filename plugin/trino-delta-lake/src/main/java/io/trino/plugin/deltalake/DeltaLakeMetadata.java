@@ -1256,7 +1256,7 @@ public class DeltaLakeMetadata
             throw new TrinoException(DELTA_LAKE_BAD_WRITE, "Failed to write Delta Lake transaction log entry", e);
         }
 
-        return Optional.empty();
+        return Optional.of(new DeltaLakeOutputMetadata(new DeltaLakeOutputInfo(!handle.getPartitionedBy().isEmpty())));
     }
 
     private static boolean isCreatedBy(Database database, String queryId)
@@ -1755,6 +1755,7 @@ public class DeltaLakeMetadata
         }
 
         boolean writeCommitted = false;
+        List<String> partitionColumns;
         try {
             TransactionLogWriter transactionLogWriter = transactionLogWriterFactory.newWriter(session, handle.getLocation());
 
@@ -1772,7 +1773,7 @@ public class DeltaLakeMetadata
             transactionLogWriter.appendCommitInfoEntry(getCommitInfoEntry(session, commitVersion, createdTime, INSERT_OPERATION, handle.getReadVersion()));
 
             ColumnMappingMode columnMappingMode = getColumnMappingMode(handle.getMetadataEntry());
-            List<String> partitionColumns = getPartitionColumns(
+            partitionColumns = getPartitionColumns(
                     handle.getMetadataEntry().getOriginalPartitionColumns(),
                     handle.getInputColumns(),
                     columnMappingMode);
@@ -1808,8 +1809,7 @@ public class DeltaLakeMetadata
             }
             throw new TrinoException(DELTA_LAKE_BAD_WRITE, "Failed to write Delta Lake transaction log entry", e);
         }
-
-        return Optional.empty();
+        return Optional.of(new DeltaLakeOutputMetadata(new DeltaLakeOutputInfo(!partitionColumns.isEmpty())));
     }
 
     private static List<String> getPartitionColumns(List<String> originalPartitionColumns, List<DeltaLakeColumnHandle> dataColumns, ColumnMappingMode columnMappingMode)
