@@ -29,6 +29,7 @@ import static io.trino.plugin.oracle.OracleQueryRunner.createOracleQueryRunner;
 import static io.trino.plugin.oracle.TestingOracleServer.TEST_USER;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 // With case-insensitive-name-matching enabled colliding schema/table names are considered as errors.
 // Some tests here create colliding names which can cause any other concurrent test to fail.
@@ -70,11 +71,23 @@ public class TestOracleCaseInsensitiveMapping
     }
 
     @Override
-    protected AutoCloseable withSchema(String schemaName)
+    public void testDropSchema()
     {
-        onRemoteDatabase().execute(format("CREATE USER %s IDENTIFIED BY SCM", quoted(schemaName)));
-        onRemoteDatabase().execute(format("GRANT UNLIMITED TABLESPACE TO %s", quoted(schemaName)));
-        return () -> onRemoteDatabase().execute("DROP USER " + quoted(schemaName));
+        assertThatThrownBy(super::testDropSchema).hasMessageContaining("This connector does not support dropping schemas");
+    }
+
+    @Override
+    protected AutoCloseable withSchema(String remoteSchemaName)
+    {
+        createSchema(remoteSchemaName);
+        return () -> onRemoteDatabase().execute("DROP USER " + quoted(remoteSchemaName));
+    }
+
+    @Override
+    protected void createSchema(String remoteSchemaName)
+    {
+        onRemoteDatabase().execute(format("CREATE USER %s IDENTIFIED BY SCM", quoted(remoteSchemaName)));
+        onRemoteDatabase().execute(format("GRANT UNLIMITED TABLESPACE TO %s", quoted(remoteSchemaName)));
     }
 
     @Override
@@ -86,8 +99,15 @@ public class TestOracleCaseInsensitiveMapping
             schemaName = remoteSchemaName;
         }
         String quotedName = schemaName + "." + quoted(remoteTableName);
-        onRemoteDatabase().execute(format("CREATE TABLE %s %s", quotedName, tableDefinition));
+        createTable(schemaName, remoteTableName, tableDefinition);
         return () -> onRemoteDatabase().execute("DROP TABLE " + quotedName);
+    }
+
+    @Override
+    protected void createTable(String remoteSchemaName, String remoteTableName, String tableDefinition)
+    {
+        String quotedName = remoteSchemaName + "." + quoted(remoteTableName);
+        onRemoteDatabase().execute(format("CREATE TABLE %s %s", quotedName, tableDefinition));
     }
 
     @Override

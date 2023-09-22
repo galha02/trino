@@ -65,7 +65,29 @@ public abstract class BaseCaseInsensitiveMappingTest
             assertQuery("SELECT schema_name FROM information_schema.schemata WHERE schema_name LIKE '%nonlowercaseschema'", "VALUES 'nonlowercaseschema'");
             assertQuery("SHOW TABLES FROM nonlowercaseschema", "VALUES 'lower_case_name', 'mixed_case_name', 'upper_case_name'");
             assertQuery("SELECT table_name FROM information_schema.tables WHERE table_schema = 'nonlowercaseschema'", "VALUES 'lower_case_name', 'mixed_case_name', 'upper_case_name'");
+
             assertQueryReturnsEmptyResult("SELECT * FROM nonlowercaseschema.lower_case_name");
+            assertUpdate("INSERT INTO nonlowercaseschema.lower_case_name VALUES 'a'", 1);
+            assertQuery("SELECT * FROM nonlowercaseschema.lower_case_name", "VALUES 'a'");
+
+            assertUpdate("CREATE TABLE nonlowercaseschema.create_table (c varchar(5))");
+            assertQuery("SHOW TABLES FROM nonlowercaseschema", "VALUES 'lower_case_name', 'mixed_case_name', 'upper_case_name', 'create_table'");
+            assertQuery("SELECT table_name FROM information_schema.tables WHERE table_schema = 'nonlowercaseschema'", "VALUES 'lower_case_name', 'mixed_case_name', 'upper_case_name', 'create_table'");
+            assertQueryReturnsEmptyResult("SELECT * FROM nonlowercaseschema.create_table");
+            assertUpdate("DROP TABLE nonlowercaseschema.create_table");
+        }
+    }
+
+    @Test
+    public void testNonLowerCaseSchemaNameCreateTableAsSelect()
+            throws Exception
+    {
+        try (AutoCloseable ignore1 = withSchema("NonLowerCaseSchema")) {
+            assertUpdate("CREATE TABLE nonlowercaseschema.ctas_table AS SELECT 'a' c", 1);
+            assertQuery("SHOW TABLES FROM nonlowercaseschema", "VALUES 'ctas_table'");
+            assertQuery("SELECT table_name FROM information_schema.tables WHERE table_schema = 'nonlowercaseschema'", "VALUES 'ctas_table'");
+            assertQuery("SELECT * FROM nonlowercaseschema.ctas_table", "VALUES 'a'");
+            assertUpdate("DROP TABLE nonlowercaseschema.ctas_table");
         }
     }
 
@@ -144,10 +166,44 @@ public abstract class BaseCaseInsensitiveMappingTest
                     assertThat(computeActual("SHOW SCHEMAS").getOnlyColumn().filter("casesensitivename"::equals)).hasSize(1); // TODO change io.trino.plugin.jdbc.JdbcClient.getSchemaNames to return a List
                     assertQueryFails("SHOW TABLES FROM casesensitivename", "Error listing tables for catalog \\w+: Failed to find remote schema name: Ambiguous name: casesensitivename");
                     assertQueryFails("SELECT * FROM casesensitivename.some_table_name", "Failed to find remote schema name: Ambiguous name: casesensitivename");
+                    assertQueryFails("INSERT INTO casesensitivename.some_table_name VALUES 'a'", "Failed to find remote schema name: Ambiguous name: casesensitivename");
+                    assertQueryFails("CREATE TABLE casesensitivename.create_table (c varchar(5))", "Failed to find remote schema name: Ambiguous name: casesensitivename");
+                    assertQueryFails("CREATE TABLE casesensitivename.ctas_table AS SELECT 'a' c", "Failed to find remote schema name: Ambiguous name: casesensitivename");
                     assertQuery("SHOW TABLES FROM some_schema", "VALUES 'some_table'");
                     assertQueryReturnsEmptyResult("SELECT * FROM some_schema.some_table");
                 }
             }
+        }
+    }
+
+    @Test
+    public void testCreateSchemaNameClash()
+            throws Exception
+    {
+        String schemaName = "TestCreateSchemaClash";
+        try (AutoCloseable ignore = withSchema(schemaName)) {
+            assertQueryFails("CREATE SCHEMA testcreateschemaclash", ".*Schema '.*\\.testcreateschemaclash' already exists");
+        }
+    }
+
+    @Test
+    public void testDropSchema()
+    {
+        String schemaName = "TestDropNonLowercaseSchema";
+        createSchema(schemaName);
+        assertUpdate("DROP SCHEMA testdropnonlowercaseschema");
+        assertThat(computeActual("SHOW SCHEMAS").getOnlyColumn().toList()).doesNotContain("testdropnonlowercaseschema");
+        assertQueryReturnsEmptyResult("SELECT schema_name FROM information_schema.schemata WHERE schema_name = 'testdropnonlowercaseschema'");
+    }
+
+    @Test
+    public void testDropSchemaNameClash()
+            throws Exception
+    {
+        String schemaName = "TestDropSchemaClash";
+        try (AutoCloseable ignore1 = withSchema(schemaName);
+                AutoCloseable ignore2 = withSchema(schemaName.toLowerCase(ENGLISH))) {
+            assertQueryFails("DROP SCHEMA testdropschemaclash", "Failed to find remote schema name: Ambiguous name: testdropschemaclash");
         }
     }
 
@@ -169,10 +225,51 @@ public abstract class BaseCaseInsensitiveMappingTest
                     assertThat(computeActual("SHOW TABLES").getOnlyColumn().filter("casesensitivename"::equals)).hasSize(1); // TODO, should be 2
                     assertQueryFails("SHOW COLUMNS FROM casesensitivename", "Failed to find remote table name: Ambiguous name: casesensitivename");
                     assertQueryFails("SELECT * FROM casesensitivename", "Failed to find remote table name: Ambiguous name: casesensitivename");
+                    assertQueryFails("INSERT INTO casesensitivename VALUES 'a'", "Failed to find remote table name: Ambiguous name: casesensitivename");
+                    assertQueryFails("CREATE TABLE casesensitivename (c varchar(5))", "Failed to find remote table name: Ambiguous name: casesensitivename");
+                    assertQueryFails("CREATE TABLE casesensitivename AS SELECT 'a' c", "Failed to find remote table name: Ambiguous name: casesensitivename");
                     assertQuery("SHOW COLUMNS FROM some_table", "SELECT 'd', 'varchar(5)', '', ''");
                     assertQueryReturnsEmptyResult("SELECT * FROM some_table");
                 }
             }
+        }
+    }
+
+    @Test
+    public void testCreateTableNameClash()
+            throws Exception
+    {
+        try (AutoCloseable ignore1 = withTable("CaseSensitiveName", "(c varchar(5))")) {
+            assertQueryFails("CREATE TABLE casesensitivename (c varchar(5))", ".*Table '.*' already exists");
+        }
+    }
+
+    @Test
+    public void testCreateTableAsSelectNameClash()
+            throws Exception
+    {
+        try (AutoCloseable ignore1 = withTable("CaseSensitiveName", "(c varchar(5))")) {
+            assertQueryFails("CREATE TABLE casesensitivename AS SELECT 'a' c", ".*Destination table '.*' already exists");
+        }
+    }
+
+    @Test
+    public void testDropTable()
+    {
+        createTable(getSession().getSchema().orElseThrow(), "CaseSensitiveName", "(c varchar(5))");
+        assertUpdate("DROP TABLE casesensitivename");
+        assertThat(computeActual("SHOW TABLES").getOnlyColumn().toList()).doesNotContain("casesensitivename");
+        assertQueryReturnsEmptyResult("SELECT table_name FROM information_schema.tables WHERE table_schema = '" + getSession().getSchema().orElseThrow().toLowerCase(ENGLISH) + "' AND table_name = 'casesensitivename'");
+    }
+
+    @Test
+    public void testDropTableClash()
+            throws Exception
+    {
+        String tableName = "CaseSensitiveName";
+        try (AutoCloseable ignore1 = withTable(tableName, "(c varchar(5))");
+                AutoCloseable ignore2 = withTable(tableName.toLowerCase(ENGLISH), "(c varchar(5))")) {
+            assertQueryFails("DROP TABLE casesensitivename", "Failed to find remote table name: Ambiguous name: casesensitivename");
         }
     }
 
@@ -321,17 +418,28 @@ public abstract class BaseCaseInsensitiveMappingTest
         }
     }
 
-    protected AutoCloseable withSchema(String schemaName)
+    protected AutoCloseable withSchema(String remoteSchemaName)
     {
-        onRemoteDatabase().execute("CREATE SCHEMA " + quoted(schemaName));
-        return () -> onRemoteDatabase().execute("DROP SCHEMA " + quoted(schemaName));
+        createSchema(remoteSchemaName);
+        return () -> onRemoteDatabase().execute("DROP SCHEMA " + quoted(remoteSchemaName));
+    }
+
+    protected void createSchema(String remoteSchemaName)
+    {
+        onRemoteDatabase().execute("CREATE SCHEMA " + quoted(remoteSchemaName));
     }
 
     protected AutoCloseable withTable(String remoteSchemaName, String remoteTableName, String tableDefinition)
     {
+        createTable(remoteSchemaName, remoteTableName, tableDefinition);
+        String quotedName = quoted(remoteSchemaName) + "." + quoted(remoteTableName);
+        return () -> onRemoteDatabase().execute("DROP TABLE " + quotedName);
+    }
+
+    protected void createTable(String remoteSchemaName, String remoteTableName, String tableDefinition)
+    {
         String quotedName = quoted(remoteSchemaName) + "." + quoted(remoteTableName);
         onRemoteDatabase().execute(format("CREATE TABLE %s %s", quotedName, tableDefinition));
-        return () -> onRemoteDatabase().execute("DROP TABLE " + quotedName);
     }
 
     protected String quoted(String name)

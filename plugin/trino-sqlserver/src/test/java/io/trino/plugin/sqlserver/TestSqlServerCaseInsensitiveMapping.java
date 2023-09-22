@@ -69,6 +69,16 @@ public class TestSqlServerCaseInsensitiveMapping
         return sqlServer::execute;
     }
 
+    @Override
+    public void testNonLowerCaseSchemaNameCreateTableAsSelect()
+            throws Exception
+    {
+        // TODO: Fix CTAS in non-lowercase schemas to work with case-insensitive name matching enabled (https://github.com/trinodb/trino/issues/13826)
+        try (AutoCloseable ignore1 = withSchema("NonLowerCaseSchema")) {
+            assertQueryFails("CREATE TABLE nonlowercaseschema.ctas_table AS SELECT 'a' c", "\\QThis connector does not support renaming tables across schemas\\E");
+        }
+    }
+
     @Test
     public void testSqlServerCollation()
             throws Exception
@@ -80,5 +90,13 @@ public class TestSqlServerCaseInsensitiveMapping
             assertThat(resultSet.getString(1)).isEqualTo("Latin1_General_CS_AS");
             assertThat(resultSet.next()).isFalse();
         }
+    }
+
+    @Test
+    public void forceTestNgToRespectSingleThreaded()
+    {
+        // TODO: Remove after updating TestNG to 7.4.0+ (https://github.com/trinodb/trino/issues/8571)
+        // TestNG doesn't enforce @Test(singleThreaded = true) when tests are defined in base class. According to
+        // https://github.com/cbeust/testng/issues/2361#issuecomment-688393166 a workaround it to add a dummy test to the leaf test class.
     }
 }
