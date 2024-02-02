@@ -30,6 +30,7 @@ import io.trino.metadata.QualifiedObjectName;
 import io.trino.metadata.TableExecuteHandle;
 import io.trino.metadata.TableHandle;
 import io.trino.metadata.TableLayout;
+import io.trino.spi.connector.CatalogHandle;
 import io.trino.spi.connector.ColumnHandle;
 import io.trino.spi.connector.ConnectorTableMetadata;
 import io.trino.spi.connector.RowChangeParadigm;
@@ -179,6 +180,15 @@ public class TableWriterNode
         return new TableWriterNode(getId(), Iterables.getOnlyElement(newChildren), target, rowCountSymbol, fragmentSymbol, columns, columnNames, partitioningScheme, statisticsAggregation, statisticsAggregationDescriptor);
     }
 
+    @Override
+    public List<CatalogHandle> getPlanContingentCatalogs()
+    {
+        return ImmutableList.<CatalogHandle>builder()
+                .addAll(source.getPlanContingentCatalogs())
+                .addAll(target.getPlanContingentCatalogs())
+                .build();
+    }
+
     @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "@type")
     @JsonSubTypes({
             @JsonSubTypes.Type(value = CreateTarget.class, name = "CreateTarget"),
@@ -199,6 +209,8 @@ public class TableWriterNode
         public abstract OptionalInt getMaxWriterTasks(Metadata metadata, Session session);
 
         public abstract WriterScalingOptions getWriterScalingOptions(Metadata metadata, Session session);
+
+        public abstract List<CatalogHandle> getPlanContingentCatalogs();
     }
 
     // only used during planning -- will not be serialized
@@ -243,6 +255,13 @@ public class TableWriterNode
                     tableMetadata.getTableSchema().getTable().getSchemaName(),
                     tableMetadata.getTableSchema().getTable().getTableName());
             return metadata.getNewTableWriterScalingOptions(session, tableName, tableMetadata.getProperties());
+        }
+
+        @Override
+        public ImmutableList<CatalogHandle> getPlanContingentCatalogs()
+        {
+            //TODO double check
+            return ImmutableList.of();
         }
 
         public Optional<TableLayout> getLayout()
@@ -347,6 +366,12 @@ public class TableWriterNode
         {
             return writerScalingOptions;
         }
+
+        @Override
+        public List<CatalogHandle> getPlanContingentCatalogs()
+        {
+            return ImmutableList.of(handle.getCatalogHandle());
+        }
     }
 
     // only used during planning -- will not be serialized
@@ -396,6 +421,12 @@ public class TableWriterNode
         public WriterScalingOptions getWriterScalingOptions(Metadata metadata, Session session)
         {
             return metadata.getInsertWriterScalingOptions(session, handle);
+        }
+
+        @Override
+        public List<CatalogHandle> getPlanContingentCatalogs()
+        {
+            return ImmutableList.of(handle.getCatalogHandle());
         }
     }
 
@@ -470,6 +501,12 @@ public class TableWriterNode
         {
             return writerScalingOptions;
         }
+
+        @Override
+        public List<CatalogHandle> getPlanContingentCatalogs()
+        {
+            return ImmutableList.of(handle.getCatalogHandle());
+        }
     }
 
     public static class RefreshMaterializedViewReference
@@ -531,6 +568,15 @@ public class TableWriterNode
         public WriterScalingOptions getWriterScalingOptions(Metadata metadata, Session session)
         {
             return metadata.getInsertWriterScalingOptions(session, storageTableHandle);
+        }
+
+        @Override
+        public List<CatalogHandle> getPlanContingentCatalogs()
+        {
+            return ImmutableList.<CatalogHandle>builder()
+                    .add(storageTableHandle.getCatalogHandle())
+                    .addAll(sourceTableHandles.stream().map(TableHandle::getCatalogHandle).iterator())
+                    .build();
         }
     }
 
@@ -622,6 +668,16 @@ public class TableWriterNode
         {
             return writerScalingOptions;
         }
+
+        @Override
+        public List<CatalogHandle> getPlanContingentCatalogs()
+        {
+            return ImmutableList.<CatalogHandle>builder()
+                    .add(tableHandle.getCatalogHandle())
+                    .add(insertHandle.getCatalogHandle())
+                    .addAll(sourceTableHandles.stream().map(TableHandle::getCatalogHandle).iterator())
+                    .build();
+        }
     }
 
     public static class DeleteTarget
@@ -679,6 +735,12 @@ public class TableWriterNode
         public WriterScalingOptions getWriterScalingOptions(Metadata metadata, Session session)
         {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public List<CatalogHandle> getPlanContingentCatalogs()
+        {
+            return ImmutableList.copyOf(handle.map(TableHandle::getCatalogHandle).stream().iterator());
         }
     }
 
@@ -757,6 +819,12 @@ public class TableWriterNode
         {
             throw new UnsupportedOperationException();
         }
+
+        @Override
+        public List<CatalogHandle> getPlanContingentCatalogs()
+        {
+            return ImmutableList.copyOf(handle.map(TableHandle::getCatalogHandle).stream().iterator());
+        }
     }
 
     public static class TableExecuteTarget
@@ -834,6 +902,15 @@ public class TableWriterNode
         {
             return writerScalingOptions;
         }
+
+        @Override
+        public List<CatalogHandle> getPlanContingentCatalogs()
+        {
+            return ImmutableList.<CatalogHandle>builder()
+                    .add(executeHandle.getCatalogHandle())
+                    .addAll(sourceHandle.map(TableHandle::getCatalogHandle).stream().iterator())
+                    .build();
+        }
     }
 
     public static class MergeTarget
@@ -903,6 +980,18 @@ public class TableWriterNode
         public WriterScalingOptions getWriterScalingOptions(Metadata metadata, Session session)
         {
             return WriterScalingOptions.DISABLED;
+        }
+
+        @Override
+        public List<CatalogHandle> getPlanContingentCatalogs()
+        {
+            return ImmutableList.<CatalogHandle>builder()
+                    .add(handle.getCatalogHandle())
+                    .addAll(mergeHandle.map(MergeHandle::getTableHandle)
+                            .map(TableHandle::getCatalogHandle)
+                            .stream().iterator())
+                    // TODO need connector merge table handler?
+                    .build();
         }
     }
 
