@@ -301,3 +301,47 @@ WHERE regionkey IN (
     FROM region
 );
 ```
+
+## Examples
+
+The following example queries showcase aspects of using comparison functions and
+operators related to implied ordering of values, implicit casting, and different
+types.
+
+Ordering:
+
+```sql
+SELECT 'M' BETWEEN 'A' AND 'Z'; -- true
+SELECT 'A' < 'B'; -- true
+SELECT 'A' < 'a'; -- true
+SELECT TRUE > FALSE; -- true
+SELECT 'M' BETWEEN 'A' AND 'Z'; -- true
+SELECT 'm' BETWEEN 'A' AND 'Z'; -- false
+```
+
+The following queries show a subtle difference between `char` and `varchar`
+types. The length parameter for `varchar` is an optional maximum length
+parameter and comparison happens directly with the data:
+
+```sql
+SELECT cast('Test' as varchar(20)) = cast('Test' as varchar(25)); --true
+SELECT cast('Test' as varchar(20)) = cast('Test   ' as varchar(25)); --false
+```
+
+The length parameter for `char` however creates a fixed length value. Comparison
+with different length causes a cast to the same larger length to enable the
+comparison. The cast is performed as automatic padding with spaces, and
+therefore both queries in the following return `true`:
+
+```sql
+SELECT cast('Test' as char(20)) = cast('Test' as char(25)); -- true
+SELECT cast('Test' as char(20)) = cast('Test   ' as char(25)); -- true
+```
+
+The following queries show how date types are ordered, and how date is
+implicitly cast to timestamp with zero time values:
+
+```sql
+SELECT DATE '2024-08-22' < DATE '2024-08-31';
+SELECT DATE '2024-08-22' < TIMESTAMP '2024-08-22 8:00:00';
+```
