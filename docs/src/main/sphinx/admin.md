@@ -4,6 +4,7 @@
 :maxdepth: 1
 
 admin/web-interface
+admin/logging
 admin/tuning
 admin/jmx
 admin/opentelemetry
