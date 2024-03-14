@@ -8,6 +8,7 @@ admin/logging
 admin/tuning
 admin/jmx
 admin/opentelemetry
+admin/openmetrics
 admin/properties
 admin/spill
 admin/resource-groups
