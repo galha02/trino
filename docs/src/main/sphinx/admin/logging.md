@@ -8,6 +8,28 @@ java package space
 
 log level
 
+(log-levels)=
+## Log levels
+
+The optional log levels file, `etc/log.properties`, allows setting the
+minimum log level for named logger hierarchies. Every logger has a name,
+which is typically the fully qualified name of the class that uses the logger.
+Loggers have a hierarchy based on the dots in the name, like Java packages.
+For example, consider the following log levels file:
+
+```text
+io.trino=INFO
+```
+
+This would set the minimum level to `INFO` for both `io.trino.server` and
+`io.trino.plugin.hive`. The default minimum level is `INFO`, thus the above
+example does not actually change anything. There are four levels: `DEBUG`,
+`INFO`, `WARN` and `ERROR`.
+
+
+
+
+
 properties-logging
 
 
@@ -40,7 +62,7 @@ Then we start up Trino with the following added to config.properties :
 log.path=tcp://localhost:5170
 log.format=json
 
-node.annotation-file=etc/annotations.properties 
+node.annotation-file=etc/annotations.properties
 and the etc/annotation.properties file like
 host_ip=1.2.3.4
 service_name=trino
