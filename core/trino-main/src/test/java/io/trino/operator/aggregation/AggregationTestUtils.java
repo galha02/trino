@@ -13,7 +13,6 @@
  */
 package io.trino.operator.aggregation;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.Ints;
 import io.trino.block.BlockAssertions;
 import io.trino.metadata.TestingFunctionResolution;
@@ -35,9 +34,6 @@ import java.util.function.BiFunction;
 import java.util.stream.IntStream;
 
 import static io.trino.spi.type.BooleanType.BOOLEAN;
-import static io.trino.sql.planner.plan.AggregationNode.Step.FINAL;
-import static io.trino.sql.planner.plan.AggregationNode.Step.PARTIAL;
-import static io.trino.sql.planner.plan.AggregationNode.Step.SINGLE;
 import static java.lang.String.format;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Fail.fail;
@@ -225,7 +221,7 @@ public final class AggregationTestUtils
 
     private static Object aggregation(TestingAggregationFunction function, int[] args, OptionalInt maskChannel, Page... pages)
     {
-        Aggregator aggregator = function.createAggregatorFactory(SINGLE, Ints.asList(args), maskChannel).createAggregator();
+        Aggregator aggregator = function.createSingleAggregatorFactory(Ints.asList(args), maskChannel).createAggregator();
         for (Page page : pages) {
             if (page.getPositionCount() > 0) {
                 aggregator.processPage(page);
@@ -261,11 +257,11 @@ public final class AggregationTestUtils
 
     private static Object partialAggregation(TestingAggregationFunction function, int[] args, Page... pages)
     {
-        AggregatorFactory finalAggregatorFactory = function.createAggregatorFactory(FINAL, Ints.asList(0), OptionalInt.empty());
+        AggregatorFactory finalAggregatorFactory = function.createFinalAggregatorFactory(0, OptionalInt.empty());
         Aggregator finalAggregator = finalAggregatorFactory.createAggregator();
 
         // Test handling of empty intermediate blocks
-        AggregatorFactory partialAggregatorFactory = function.createAggregatorFactory(PARTIAL, Ints.asList(args), OptionalInt.empty());
+        AggregatorFactory partialAggregatorFactory = function.createPartialAggregatorFactory(Ints.asList(args), OptionalInt.empty());
         Block emptyBlock = getIntermediateBlock(function.getIntermediateType(), partialAggregatorFactory.createAggregator());
 
         finalAggregator.processPage(new Page(emptyBlock));
@@ -311,7 +307,7 @@ public final class AggregationTestUtils
 
     public static Object groupedAggregation(TestingAggregationFunction function, int[] args, Page... pages)
     {
-        GroupedAggregator groupedAggregator = function.createAggregatorFactory(SINGLE, Ints.asList(args), OptionalInt.empty()).createGroupedAggregator();
+        GroupedAggregator groupedAggregator = function.createSingleAggregatorFactory(Ints.asList(args), OptionalInt.empty()).createGroupedAggregator();
         for (Page page : pages) {
             groupedAggregator.processPage(0, createGroupByIdBlock(0, page.getPositionCount()), page);
         }
@@ -349,11 +345,11 @@ public final class AggregationTestUtils
 
     private static Object groupedPartialAggregation(TestingAggregationFunction function, int[] args, Page... pages)
     {
-        AggregatorFactory finalFactory = function.createAggregatorFactory(FINAL, ImmutableList.of(0), OptionalInt.empty());
+        AggregatorFactory finalFactory = function.createFinalAggregatorFactory(0, OptionalInt.empty());
         GroupedAggregator finalAggregator = finalFactory.createGroupedAggregator();
 
         // Add an empty block to test the handling of empty intermediates
-        AggregatorFactory partialFactory = function.createAggregatorFactory(PARTIAL, Ints.asList(args), OptionalInt.empty());
+        AggregatorFactory partialFactory = function.createPartialAggregatorFactory(Ints.asList(args), OptionalInt.empty());
         Block emptyBlock = getIntermediateBlock(function.getIntermediateType(), partialFactory.createGroupedAggregator());
 
         finalAggregator.processPage(0, createGroupByIdBlock(0, emptyBlock.getPositionCount()), new Page(emptyBlock));

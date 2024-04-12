@@ -56,7 +56,6 @@ import static io.trino.sql.ir.Comparison.Operator.LESS_THAN;
 import static io.trino.sql.ir.Comparison.Operator.LESS_THAN_OR_EQUAL;
 import static io.trino.sql.ir.Comparison.Operator.NOT_EQUAL;
 import static io.trino.sql.ir.IrUtils.combineConjuncts;
-import static io.trino.sql.ir.IrUtils.combineDisjuncts;
 import static io.trino.sql.planner.plan.AggregationNode.globalAggregation;
 import static io.trino.sql.planner.plan.AggregationNode.singleAggregation;
 import static io.trino.sql.planner.plan.ApplyNode.Quantifier.ALL;
@@ -134,28 +133,32 @@ public class TransformQuantifiedComparisonApplyToCorrelatedJoin
                                     false,
                                     Optional.empty(),
                                     Optional.empty(),
-                                    Optional.empty()),
+                                    Optional.empty(),
+                                    true),
                             maxValue, new Aggregation(
                                     metadata.resolveBuiltinFunction("max", fromTypes(outputColumnType)),
                                     outputColumnReferences,
                                     false,
                                     Optional.empty(),
                                     Optional.empty(),
-                                    Optional.empty()),
+                                    Optional.empty(),
+                                    true),
                             countAllValue, new Aggregation(
                                     metadata.resolveBuiltinFunction("count", emptyList()),
                                     ImmutableList.of(),
                                     false,
                                     Optional.empty(),
                                     Optional.empty(),
-                                    Optional.empty()),
+                                    Optional.empty(),
+                                    true),
                             countNonNullValue, new Aggregation(
                                     metadata.resolveBuiltinFunction("count", fromTypes(outputColumnType)),
                                     outputColumnReferences,
                                     false,
                                     Optional.empty(),
                                     Optional.empty(),
-                                    Optional.empty())),
+                                    Optional.empty(),
+                                    true)),
                     globalAggregation());
 
             PlanNode join = new CorrelatedJoinNode(

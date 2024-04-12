@@ -2587,6 +2587,7 @@ public final class MetadataManager
                     .forEach(builder::intermediateType);
         }
 
+        aggregationFunctionMetadata.getDecomposition().ifPresent(builder::decomposition);
         return builder.build();
     }
 

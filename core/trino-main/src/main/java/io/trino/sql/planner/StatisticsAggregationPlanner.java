@@ -89,7 +89,8 @@ public class StatisticsAggregationPlanner
                     false,
                     Optional.empty(),
                     Optional.empty(),
-                    Optional.empty());
+                    Optional.empty(),
+                    true);
             Symbol symbol = symbolAllocator.newSymbol("rowCount", BIGINT);
             aggregations.put(symbol, aggregation);
             descriptor.addTableStatistic(ROW_COUNT, symbol);
@@ -163,7 +164,8 @@ public class StatisticsAggregationPlanner
                         false,
                         Optional.empty(),
                         Optional.empty(),
-                        Optional.empty()),
+                        Optional.empty(),
+                        true),
                 resolvedFunction.signature().getReturnType());
     }
 

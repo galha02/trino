@@ -22,7 +22,6 @@ import io.trino.spi.TrinoException;
 import io.trino.spi.block.Block;
 import io.trino.spi.type.MapType;
 import io.trino.spi.type.Type;
-import io.trino.sql.planner.plan.AggregationNode.Step;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
@@ -33,9 +32,6 @@ import static io.trino.operator.aggregation.AggregationTestUtils.getIntermediate
 import static io.trino.spi.type.BigintType.BIGINT;
 import static io.trino.spi.type.DoubleType.DOUBLE;
 import static io.trino.sql.analyzer.TypeSignatureProvider.fromTypes;
-import static io.trino.sql.planner.plan.AggregationNode.Step.FINAL;
-import static io.trino.sql.planner.plan.AggregationNode.Step.PARTIAL;
-import static io.trino.sql.planner.plan.AggregationNode.Step.SINGLE;
 import static io.trino.util.StructuralTestUtil.mapType;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -58,15 +54,15 @@ public class TestDoubleHistogramAggregation
     @Test
     public void test()
     {
-        Aggregator singleStep = getAggregator(SINGLE);
+        Aggregator singleStep = function.createSingleAggregatorFactory(ImmutableList.of(0, 1, 2), OptionalInt.empty()).createAggregator();
         singleStep.processPage(input);
         Block expected = getFinalBlock(finalType, singleStep);
 
-        Aggregator partialStep = getAggregator(PARTIAL);
+        Aggregator partialStep = function.createPartialAggregatorFactory(ImmutableList.of(0, 1, 2), OptionalInt.empty()).createAggregator();
         partialStep.processPage(input);
         Block partialBlock = getIntermediateBlock(intermediateType, partialStep);
 
-        Aggregator finalStep = getAggregator(FINAL);
+        Aggregator finalStep = function.createFinalAggregatorFactory(0, OptionalInt.empty()).createAggregator();
         finalStep.processPage(new Page(partialBlock));
         Block actual = getFinalBlock(finalType, finalStep);
 
@@ -76,15 +72,15 @@ public class TestDoubleHistogramAggregation
     @Test
     public void testMerge()
     {
-        Aggregator singleStep = getAggregator(SINGLE);
+        Aggregator singleStep = function.createSingleAggregatorFactory(ImmutableList.of(0, 1, 2), OptionalInt.empty()).createAggregator();
         singleStep.processPage(input);
         Block singleStepResult = getFinalBlock(finalType, singleStep);
 
-        Aggregator partialStep = getAggregator(PARTIAL);
+        Aggregator partialStep = function.createPartialAggregatorFactory(ImmutableList.of(0, 1, 2), OptionalInt.empty()).createAggregator();
         partialStep.processPage(input);
         Block intermediate = getIntermediateBlock(intermediateType, partialStep);
 
-        Aggregator finalStep = getAggregator(FINAL);
+        Aggregator finalStep = function.createFinalAggregatorFactory(0, OptionalInt.empty()).createAggregator();
 
         finalStep.processPage(new Page(intermediate));
         finalStep.processPage(new Page(intermediate));
@@ -98,7 +94,7 @@ public class TestDoubleHistogramAggregation
     @Test
     public void testNull()
     {
-        Aggregator aggregator = getAggregator(SINGLE);
+        Aggregator aggregator = function.createSingleAggregatorFactory(ImmutableList.of(0, 1, 2), OptionalInt.empty()).createAggregator();
         Block result = getFinalBlock(finalType, aggregator);
 
         assertThat(result.getPositionCount() == 1).isTrue();
@@ -108,16 +104,11 @@ public class TestDoubleHistogramAggregation
     @Test
     public void testBadNumberOfBuckets()
     {
-        Aggregator singleStep = getAggregator(SINGLE);
+        Aggregator singleStep = function.createSingleAggregatorFactory(ImmutableList.of(0, 1, 2), OptionalInt.empty()).createAggregator();
         assertThatThrownBy(() -> singleStep.processPage(makeInput(0)))
                 .isInstanceOf(TrinoException.class)
                 .hasMessage("numeric_histogram bucket count must be greater than one");
         getFinalBlock(finalType, singleStep);
-    }
-
-    private Aggregator getAggregator(Step step)
-    {
-        return function.createAggregatorFactory(step, step.isInputRaw() ? ImmutableList.of(0, 1, 2) : ImmutableList.of(0), OptionalInt.empty()).createAggregator();
     }
 
     private static Map<Double, Double> extractSingleValue(Block block)

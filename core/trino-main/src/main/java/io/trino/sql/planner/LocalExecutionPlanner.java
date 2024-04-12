@@ -362,6 +362,7 @@ import static io.trino.sql.planner.SystemPartitioningHandle.SINGLE_DISTRIBUTION;
 import static io.trino.sql.planner.optimizations.PlanNodeSearcher.searchFrom;
 import static io.trino.sql.planner.plan.AggregationNode.Step.FINAL;
 import static io.trino.sql.planner.plan.AggregationNode.Step.PARTIAL;
+import static io.trino.sql.planner.plan.AggregationNode.Step.SINGLE;
 import static io.trino.sql.planner.plan.ExchangeNode.Scope.LOCAL;
 import static io.trino.sql.planner.plan.FrameBoundType.CURRENT_ROW;
 import static io.trino.sql.planner.plan.JoinType.FULL;
@@ -3814,7 +3815,7 @@ public class LocalExecutionPlanner
 
             return new AggregatorFactory(
                     accumulatorFactory,
-                    step,
+                    accumulatorFactory.isLegacyDecomposition() ? step : SINGLE,
                     intermediateType,
                     finalType,
                     argumentChannels,
