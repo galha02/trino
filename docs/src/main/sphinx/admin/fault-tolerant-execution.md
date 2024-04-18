@@ -23,7 +23,7 @@ fault-tolerant execution to improve query processing resilience, read
 
 ## Configuration
 
-Fault-tolerant execution is disabled by default. To enable the feature, set the
+Fault-tolerant execution is turned off by default. To enable the feature, set the
 `retry-policy` configuration property to either `QUERY` or `TASK`
 depending on the desired {ref}`retry policy <fte-retry-policy>`.
 
@@ -65,7 +65,8 @@ execution on a Trino cluster:
 * - `retry-policy`
   - Configures what is retried in the event of failure, either `QUERY` to retry
     the whole query, or `TASK` to retry tasks individually if they fail. See
-    [retry policy](fte-retry-policy) for more information.
+    [retry policy](fte-retry-policy) for more information. The equivalent
+    session property is `retry_policy`.
   - `NONE`
 * - `exchange.deduplication-buffer-size`
   - [Data size](prop-type-data-size) of the coordinator's in-memory buffer used
@@ -76,7 +77,7 @@ execution on a Trino cluster:
     is configured.
   - `32MB`
 * - `fault-tolerant-execution.exchange-encryption-enabled`
-  - Enable encryption of spooling data, see [Encryption](fte-encryption) for details. 
+  - Enable encryption of spooling data, see [Encryption](fte-encryption) for details.
     Setting this property to false is not recommended if Trino processes sensitive data.
   - ``true``
 :::
@@ -85,16 +86,16 @@ Find further related properties in [](/admin/properties), specifically in
 [](/admin/properties-resource-management) and [](/admin/properties-exchange).
 
 (fte-retry-policy)=
-
 ## Retry policy
 
-The `retry-policy` configuration property designates whether Trino retries
-entire queries or a query's individual tasks in the event of failure.
+The `retry-policy` configuration property, or the `retry_policy` session
+property, designates whether Trino retries entire queries or a query's
+individual tasks in the event of failure.
 
 ### QUERY
 
 A `QUERY` retry policy instructs Trino to automatically retry a query in the
-event of an error occuring on a worker node. A `QUERY` retry policy is
+event of an error occurring on a worker node. A `QUERY` retry policy is
 recommended when the majority of the Trino cluster's workload consists of many
 small queries.
 
@@ -347,9 +348,9 @@ fault-tolerant execution:
   - Maximum number of partitions to use for distributed joins and aggregations,
     similar in function to the ``query.max-hash-partition-count`` [query
     management property](/admin/properties-query-management). It is not
-    recommended to increase this property value above the default of `50`, which
-    may result in instability and poor performance. May be overridden for the
-    current session with the `fault_tolerant_execution_max_partition_count`
+    recommended to increase this property value higher than the default of `50`,
+    which may result in instability and poor performance. May be overridden for
+    the current session with the `fault_tolerant_execution_max_partition_count`
     [session property](session-properties-definition).
   - `50`
   - Only `TASK`
@@ -380,7 +381,6 @@ fault-tolerant execution:
 :::
 
 (fte-exchange-manager)=
-
 ## Exchange manager
 
 Exchange spooling is responsible for storing and managing spooled data for
@@ -399,7 +399,7 @@ property to `filesystem` or `hdfs`, and set additional configuration properties 
 for your storage solution.
 
 The following table lists the available configuration properties for
-`exchange-manager.properties`, their default values, and which filesystem(s)
+`exchange-manager.properties`, their default values, and which filesystems
 the property may be configured for:
 
 :::{list-table} Exchange manager configuration properties
@@ -459,12 +459,11 @@ the property may be configured for:
   - AWS S3, GCS
 * - `exchange.s3.endpoint`
   - S3 storage endpoint server if using an S3-compatible storage system that
-    is not AWS. If using AWS S3, this can be ignored unless HTTPS is required 
-    by an AWS bucket policy. If TLS is required, then this property can be 
-    set to an https endpoint such as ``https://s3.us-east-1.amazonaws.com``. 
-    Note that TLS is redundant due to {ref}`automatic encryption <fte-encryption>`. 
-    If using GCS, set it
-    to `https://storage.googleapis.com`.
+    is not AWS. If using AWS S3, this can be ignored unless HTTPS is required
+    by an AWS bucket policy. If TLS is required, then this property can be
+    set to an https endpoint such as ``https://s3.us-east-1.amazonaws.com``.
+    Note that TLS is redundant due to {ref}`automatic encryption <fte-encryption>`.
+    If using GCS, set it to `https://storage.googleapis.com`.
   -
   - Any S3-compatible storage
 * - `exchange.s3.max-error-retries`
@@ -523,7 +522,6 @@ lifecycle rule to automatically expire abandoned objects in the event of a node
 crash.
 
 (fte-exchange-aws-s3)=
-
 #### AWS S3
 
 The following example `exchange-manager.properties` configuration specifies an
@@ -551,7 +549,6 @@ exchange.base-directories=s3://exchange-spooling-bucket-1,s3://exchange-spooling
 ```
 
 (fte-exchange-azure-blob)=
-
 #### Azure Blob Storage
 
 The following example `exchange-manager.properties` configuration specifies an
@@ -566,7 +563,6 @@ exchange.azure.connection-string=connection-string
 ```
 
 (fte-exchange-gcs)=
-
 #### Google Cloud Storage
 
 To enable exchange spooling on GCS in Trino, change the request endpoint to the
@@ -592,7 +588,6 @@ exchange.gcs.json-key-file-path=/path/to/gcs_keyfile.json
 ```
 
 (fte-exchange-hdfs)=
-
 #### HDFS
 
 The following `exchange-manager.properties` configuration example specifies HDFS
@@ -605,7 +600,6 @@ hdfs.config.resources=/usr/lib/hadoop/etc/hadoop/core-site.xml
 ```
 
 (fte-exchange-local-filesystem)=
-
 #### Local filesystem storage
 
 The following example `exchange-manager.properties` configuration specifies a

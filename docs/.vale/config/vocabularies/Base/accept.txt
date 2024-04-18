@@ -14,8 +14,10 @@ ConnectorSplitManager
 CPU
 DNS
 ETL
+GCS
 Guice
 gzip
+hdfs
 HDFS
 JDBC
 JDK
@@ -35,6 +37,6 @@ rowId
 SPI
 subnet
 TLS
-Trino
 trino
+Trino
 truststore
