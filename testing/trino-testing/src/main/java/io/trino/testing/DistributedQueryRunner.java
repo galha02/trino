@@ -63,6 +63,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -72,7 +73,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static com.google.common.base.MoreObjects.firstNonNull;
@@ -150,15 +150,18 @@ public class DistributedQueryRunner
             extraCloseables.forEach(closeable -> closer.register(() -> closeUnchecked(closeable)));
             log.debug("Created TestingDiscoveryServer in %s", nanosSince(discoveryStart));
 
-            registerNewWorker = () -> createServer(
-                    false,
-                    extraProperties,
-                    environment,
-                    additionalModule,
-                    baseDataDir,
-                    Optional.empty(),
-                    Optional.of(ImmutableList.of()),
-                    ImmutableList.of());
+            registerNewWorker = () -> {
+                @SuppressWarnings("resource")
+                TestingTrinoServer ignored = createServer(
+                        false,
+                        extraProperties,
+                        environment,
+                        additionalModule,
+                        baseDataDir,
+                        Optional.empty(),
+                        Optional.of(ImmutableList.of()),
+                        ImmutableList.of());
+            };
 
             int coordinatorCount = backupCoordinatorProperties.isEmpty() ? 1 : 2;
             checkArgument(nodeCount >= coordinatorCount, "nodeCount includes coordinator(s) count, so must be at least %s, got: %s", coordinatorCount, nodeCount);
@@ -635,7 +638,8 @@ public class DistributedQueryRunner
         private Map<String, String> extraProperties = ImmutableMap.of();
         private Map<String, String> coordinatorProperties = ImmutableMap.of();
         private Optional<Map<String, String>> backupCoordinatorProperties = Optional.empty();
-        private Consumer<QueryRunner> additionalSetup = queryRunner -> {};
+        private List<CheckedConsumer<QueryRunner, ? extends Exception>> additionalEngineSetup = new ArrayList<>();
+        private List<CheckedConsumer<QueryRunner, ? extends Exception>> additionalSetup = new ArrayList<>();
         private String environment = ENVIRONMENT;
         private Module additionalModule = EMPTY_MODULE;
         private Optional<Path> baseDataDir = Optional.empty();
@@ -710,14 +714,48 @@ public class DistributedQueryRunner
         }
 
         /**
-         * Additional configuration to be applied on {@link QueryRunner} being built.
-         * Invoked after engine configuration is applied, but before connector-specific configurations
-         * (if any) are applied.
+         * Add additional configuration to be applied on {@link QueryRunner} being built.
+         * Invoked after engine is configured but before any subclass provided {@link #configure configuration}.
          */
         @CanIgnoreReturnValue
-        public SELF setAdditionalSetup(Consumer<QueryRunner> additionalSetup)
+        public SELF addAdditionalEngineSetup(CheckedConsumer<QueryRunner, ? extends Exception> additionalEngineSetup)
         {
-            this.additionalSetup = requireNonNull(additionalSetup, "additionalSetup is null");
+            this.additionalEngineSetup.add(requireNonNull(additionalEngineSetup, "additionalEngineSetup is null"));
+            return self();
+        }
+
+        /**
+         * Replace additional configuration to be applied on {@link QueryRunner} being built with the new list.
+         * Invoked after engine is configured but before any subclass provided {@link #configure configuration}.
+         */
+        @CanIgnoreReturnValue
+        public SELF setAdditionalEngineSetup(List<CheckedConsumer<QueryRunner, ? extends Exception>> additionalEngineSetup)
+        {
+            // note: additional copy via ImmutableList so that if fails on nulls
+            this.additionalEngineSetup = new ArrayList<>(ImmutableList.copyOf(requireNonNull(additionalEngineSetup, "additionalEngineSetup is null")));
+            return self();
+        }
+
+        /**
+         * Add additional configuration to be applied on {@link QueryRunner} being built.
+         * Invoked after engine is configured and after any subclass provided {@link #configure configuration}.
+         */
+        @CanIgnoreReturnValue
+        public SELF addAdditionalSetup(CheckedConsumer<QueryRunner, ? extends Exception> additionalSetup)
+        {
+            this.additionalSetup.add(requireNonNull(additionalSetup, "additionalSetup is null"));
+            return self();
+        }
+
+        /**
+         * Replace additional configuration to be applied on {@link QueryRunner} being built with the new list.
+         * Invoked after engine is configured and after any subclass provided {@link #configure configuration}.
+         */
+        @CanIgnoreReturnValue
+        public SELF setAdditionalSetup(List<CheckedConsumer<QueryRunner, ? extends Exception>> additionalSetup)
+        {
+            // note: additional copy via ImmutableList so that if fails on nulls
+            this.additionalSetup = new ArrayList<>(ImmutableList.copyOf(requireNonNull(additionalSetup, "additionalSetup is null")));
             return self();
         }
 
@@ -852,7 +890,10 @@ public class DistributedQueryRunner
                     testingTrinoClientFactory);
 
             try {
-                additionalSetup.accept(queryRunner);
+                configure(queryRunner);
+                for (CheckedConsumer<QueryRunner, ? extends Exception> setup : additionalSetup) {
+                    setup.accept(queryRunner);
+                }
             }
             catch (Throwable e) {
                 closeAllSuppress(e, queryRunner);
@@ -861,6 +902,13 @@ public class DistributedQueryRunner
 
             return queryRunner;
         }
+
+        /**
+         * Invoked after engine configuration is applied and before additional setup is invoked.
+         */
+        protected void configure(DistributedQueryRunner queryRunner)
+                throws Exception
+        {}
 
         protected static Map<String, String> addProperties(Map<String, String> properties, Map<String, String> update)
         {
@@ -882,5 +930,11 @@ public class DistributedQueryRunner
     public interface TestingTrinoClientFactory
     {
         TestingTrinoClient create(TestingTrinoServer server, Session session);
+    }
+
+    public interface CheckedConsumer<T, E extends Exception>
+    {
+        void accept(T input)
+                throws E;
     }
 }

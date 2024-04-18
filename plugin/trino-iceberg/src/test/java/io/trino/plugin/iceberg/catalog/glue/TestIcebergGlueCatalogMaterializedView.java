@@ -27,7 +27,6 @@ import io.trino.plugin.hive.metastore.glue.AwsApiCallStats;
 import io.trino.plugin.iceberg.BaseIcebergMaterializedViewTest;
 import io.trino.plugin.iceberg.IcebergQueryRunner;
 import io.trino.plugin.iceberg.SchemaInitializer;
-import io.trino.testing.DistributedQueryRunner;
 import io.trino.testing.QueryRunner;
 import org.junit.jupiter.api.AfterAll;
 
@@ -57,7 +56,7 @@ public class TestIcebergGlueCatalogMaterializedView
         this.schemaDirectory = Files.createTempDirectory("test_iceberg").toFile();
         schemaDirectory.deleteOnExit();
 
-        DistributedQueryRunner queryRunner = IcebergQueryRunner.builder()
+        return IcebergQueryRunner.builder()
                 .setIcebergProperties(
                         ImmutableMap.of(
                                 "iceberg.catalog.type", "glue",
@@ -67,14 +66,16 @@ public class TestIcebergGlueCatalogMaterializedView
                                 .withClonedTpchTables(ImmutableList.of())
                                 .withSchemaName(schemaName)
                                 .build())
+                .addAdditionalSetup(queryRunner -> {
+                    queryRunner.createCatalog("iceberg_legacy_mv", "iceberg", Map.of(
+                            "iceberg.catalog.type", "glue",
+                            "hive.metastore.glue.default-warehouse-dir", schemaDirectory.getAbsolutePath(),
+                            "iceberg.materialized-views.hide-storage-table", "false"));
+
+                    queryRunner.installPlugin(createMockConnectorPlugin());
+                    queryRunner.createCatalog("mock", "mock");
+                })
                 .build();
-
-        queryRunner.createCatalog("iceberg_legacy_mv", "iceberg", Map.of(
-                "iceberg.catalog.type", "glue",
-                "hive.metastore.glue.default-warehouse-dir", schemaDirectory.getAbsolutePath(),
-                "iceberg.materialized-views.hide-storage-table", "false"));
-
-        return queryRunner;
     }
 
     @Override
@@ -88,8 +89,8 @@ public class TestIcebergGlueCatalogMaterializedView
     {
         AWSGlueAsync glueClient = AWSGlueAsyncClientBuilder.defaultClient();
         Table table = glueClient.getTable(new GetTableRequest()
-                .withDatabaseName(schemaName)
-                .withName(materializedViewName))
+                        .withDatabaseName(schemaName)
+                        .withName(materializedViewName))
                 .getTable();
         return getTableParameters(table).get(METADATA_LOCATION_PROP);
     }

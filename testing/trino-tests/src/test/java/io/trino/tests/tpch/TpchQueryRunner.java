@@ -14,19 +14,59 @@
 package io.trino.tests.tpch;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import io.airlift.log.Logger;
 import io.airlift.log.Logging;
+import io.trino.plugin.tpch.TpchPlugin;
+import io.trino.testing.DistributedQueryRunner;
 import io.trino.testing.QueryRunner;
+
+import java.util.Map;
+
+import static io.trino.testing.TestingSession.testSessionBuilder;
 
 public final class TpchQueryRunner
 {
     private TpchQueryRunner() {}
 
+    public static Builder builder()
+    {
+        return new Builder();
+    }
+
+    public static final class Builder
+            extends DistributedQueryRunner.Builder<Builder>
+    {
+        private Map<String, String> connectorProperties = ImmutableMap.of();
+
+        private Builder()
+        {
+            super(testSessionBuilder()
+                    .setCatalog("tpch")
+                    .setSchema("tiny")
+                    .build());
+        }
+
+        @CanIgnoreReturnValue
+        public Builder withConnectorProperties(Map<String, String> connectorProperties)
+        {
+            this.connectorProperties = ImmutableMap.copyOf(connectorProperties);
+            return this;
+        }
+
+        @Override
+        protected void configure(DistributedQueryRunner queryRunner)
+        {
+            queryRunner.installPlugin(new TpchPlugin());
+            queryRunner.createCatalog("tpch", "tpch", connectorProperties);
+        }
+    }
+
     public static void main(String[] args)
             throws Exception
     {
         Logging.initialize();
-        QueryRunner queryRunner = TpchQueryRunnerBuilder.builder()
+        QueryRunner queryRunner = builder()
                 .setExtraProperties(ImmutableMap.<String, String>builder()
                         .put("http-server.http.port", "8080")
                         .put("sql.default-catalog", "tpch")
