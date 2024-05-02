@@ -699,6 +699,7 @@ nullTreatment
 
 string
     : STRING                                #basicStringLiteral
+    | DOLLAR_STRING                         #dollarStringLiteral
     | UNICODE_STRING (UESCAPE STRING)?      #unicodeStringLiteral
     ;
 
@@ -1326,6 +1327,10 @@ SEMICOLON: ';';
 
 STRING
     : '\'' ( ~'\'' | '\'\'' )* '\''
+    ;
+
+DOLLAR_STRING
+    : '$$' .*? '$$'
     ;
 
 UNICODE_STRING
