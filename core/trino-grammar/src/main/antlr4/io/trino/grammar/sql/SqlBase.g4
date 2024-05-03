@@ -862,7 +862,7 @@ pathSpecification
     ;
 
 functionSpecification
-    : FUNCTION functionDeclaration returnsClause routineCharacteristic* controlStatement
+    : FUNCTION functionDeclaration returnsClause routineCharacteristic* (controlStatement | AS string)
     ;
 
 functionDeclaration
@@ -884,6 +884,7 @@ routineCharacteristic
     | CALLED ON NULL INPUT              #calledOnNullInputCharacteristic
     | SECURITY (DEFINER | INVOKER)      #securityCharacteristic
     | COMMENT string                    #commentCharacteristic
+    | (WITH properties)                 #propertiesCharacteristic
     ;
 
 controlStatement
