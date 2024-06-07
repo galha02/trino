@@ -71,7 +71,8 @@ public class PruneOrderByInAggregation
                         aggregation.isDistinct(),
                         aggregation.getFilter(),
                         Optional.empty(),
-                        aggregation.getMask()));
+                        aggregation.getMask(),
+                        aggregation.isLegacyDecomposition()));
             }
         }
 

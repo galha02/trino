@@ -25,7 +25,6 @@ import java.util.OptionalInt;
 import java.util.stream.IntStream;
 
 import static io.trino.operator.aggregation.AggregationTestUtils.createGroupByIdBlock;
-import static io.trino.sql.planner.plan.AggregationNode.Step.SINGLE;
 
 public class AggregationTestInput
 {
@@ -65,7 +64,7 @@ public class AggregationTestInput
 
     public GroupedAggregator createGroupedAggregator()
     {
-        return function.createAggregatorFactory(SINGLE, Ints.asList(args), OptionalInt.empty())
+        return function.createSingleAggregatorFactory(Ints.asList(args), OptionalInt.empty())
                 .createGroupedAggregator();
     }
 }

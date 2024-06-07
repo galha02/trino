@@ -128,6 +128,7 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.checkState;
@@ -155,12 +156,14 @@ public class PlanBuilder
     private final Session session;
     private final Map<String, Symbol> symbolsByName = new HashMap<>();
     private final FunctionResolver functionResolver;
+    private final Predicate<ResolvedFunction> legacyDecompositionPredicate;
 
     public PlanBuilder(PlanNodeIdAllocator idAllocator, PlannerContext plannerContext, Session session)
     {
         this.idAllocator = idAllocator;
         this.session = session;
         functionResolver = plannerContext.getFunctionResolver();
+        legacyDecompositionPredicate = resolvedFunction -> plannerContext.getMetadata().getAggregationFunctionMetadata(session, resolvedFunction).getDecomposition().isEmpty();
     }
 
     public Session getSession()
@@ -448,7 +451,8 @@ public class PlanBuilder
                     aggregation.distinct(),
                     aggregation.filter(),
                     aggregation.orderBy(),
-                    mask));
+                    mask,
+                    legacyDecompositionPredicate.test(resolvedFunction)));
         }
 
         public AggregationBuilder addAggregation(Symbol output, Aggregation aggregation)
@@ -1306,7 +1310,8 @@ public class PlanBuilder
                 aggregation.distinct(),
                 aggregation.filter(),
                 aggregation.orderBy(),
-                Optional.empty());
+                Optional.empty(),
+                true);
     }
 
     @Deprecated

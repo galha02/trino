@@ -31,7 +31,6 @@ import static io.trino.metadata.InternalFunctionBundle.extractFunctions;
 import static io.trino.spi.type.BigintType.BIGINT;
 import static io.trino.spi.type.VarcharType.VARCHAR;
 import static io.trino.sql.analyzer.TypeSignatureProvider.fromTypes;
-import static io.trino.sql.planner.plan.AggregationNode.Step.SINGLE;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class TestEvaluateClassifierPredictions
@@ -41,7 +40,7 @@ public class TestEvaluateClassifierPredictions
     {
         TestingFunctionResolution functionResolution = new TestingFunctionResolution(extractFunctions(new MLPlugin().getFunctions()));
         TestingAggregationFunction aggregation = functionResolution.getAggregateFunction("evaluate_classifier_predictions", fromTypes(BIGINT, BIGINT));
-        Aggregator aggregator = aggregation.createAggregatorFactory(SINGLE, ImmutableList.of(0, 1), OptionalInt.empty()).createAggregator();
+        Aggregator aggregator = aggregation.createSingleAggregatorFactory(ImmutableList.of(0, 1), OptionalInt.empty()).createAggregator();
         aggregator.processPage(getPage());
         BlockBuilder finalOut = VARCHAR.createBlockBuilder(null, 1);
         aggregator.evaluate(finalOut);

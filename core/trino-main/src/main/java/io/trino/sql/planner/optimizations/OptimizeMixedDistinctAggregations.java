@@ -164,7 +164,8 @@ public class OptimizeMixedDistinctAggregations
                             false,
                             Optional.empty(),
                             Optional.empty(),
-                            Optional.empty()));
+                            Optional.empty(),
+                            aggregation.isLegacyDecomposition()));
                 }
                 else {
                     // Aggregations on non-distinct are already done by new node, just extract the non-null value
@@ -175,7 +176,8 @@ public class OptimizeMixedDistinctAggregations
                             false,
                             Optional.empty(),
                             Optional.empty(),
-                            Optional.empty());
+                            Optional.empty(),
+                            true);
                     CatalogSchemaFunctionName signatureName = aggregation.getResolvedFunction().signature().getName();
                     if (signatureName.equals(COUNT_NAME) || signatureName.equals(COUNT_IF_NAME) || signatureName.equals(APPROX_DISTINCT_NAME)) {
                         Symbol newSymbol = symbolAllocator.newSymbol("expr", entry.getKey().type());
@@ -444,7 +446,8 @@ public class OptimizeMixedDistinctAggregations
                                     false,
                                     Optional.empty(),
                                     Optional.empty(),
-                                    Optional.empty());
+                                    Optional.empty(),
+                                    aggregation.isLegacyDecomposition());
                         }
                     }
                     aggregations.put(newSymbol, aggregation);
