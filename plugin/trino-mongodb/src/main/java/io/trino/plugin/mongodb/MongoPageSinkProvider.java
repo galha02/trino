@@ -62,6 +62,8 @@ public class MongoPageSinkProvider
                 handle.getTemporaryRemoteTableName().orElseGet(handle::remoteTableName),
                 handle.columns(),
                 handle.mergeRowIdColumn(),
+                handle.deleteOutputTableHandle(),
+                handle.updateOutputTableHandle(),
                 implicitPrefix,
                 handle.pageSinkIdColumnName(),
                 pageSinkId);
