@@ -2518,7 +2518,6 @@ public class DeltaLakeMetadata
     private void finishOptimize(ConnectorSession session, DeltaLakeTableExecuteHandle executeHandle, Collection<Slice> fragments, List<Object> splitSourceInfo)
     {
         DeltaTableOptimizeHandle optimizeHandle = (DeltaTableOptimizeHandle) executeHandle.procedureHandle();
-        long readVersion = optimizeHandle.getCurrentVersion().orElseThrow(() -> new IllegalArgumentException("currentVersion not set"));
         String tableLocation = executeHandle.tableLocation();
 
         // paths to be deleted
@@ -2536,36 +2535,15 @@ public class DeltaLakeMetadata
             cleanExtraOutputFiles(session, Location.of(executeHandle.tableLocation()), dataFileInfos);
         }
 
+        // Note: during writes we want to preserve original case of partition columns
+        List<String> partitionColumns = getPartitionColumns(
+                optimizeHandle.getMetadataEntry().getOriginalPartitionColumns(),
+                optimizeHandle.getTableColumns(),
+                getColumnMappingMode(optimizeHandle.getMetadataEntry(), optimizeHandle.getProtocolEntry()));
+
         boolean writeCommitted = false;
         try {
-            TransactionLogWriter transactionLogWriter = transactionLogWriterFactory.newWriter(session, tableLocation);
-
-            long createdTime = Instant.now().toEpochMilli();
-            long commitVersion = readVersion + 1;
-            transactionLogWriter.appendCommitInfoEntry(getCommitInfoEntry(session, IsolationLevel.WRITESERIALIZABLE, commitVersion, createdTime, OPTIMIZE_OPERATION, readVersion, false));
-            // TODO: Delta writes another field "operationMetrics" that I haven't
-            //   seen before. It contains delete/update metrics. Investigate/include it.
-
-            long writeTimestamp = Instant.now().toEpochMilli();
-
-            for (DeltaLakeScannedDataFile scannedFile : scannedDataFiles) {
-                String relativePath = relativePath(tableLocation, scannedFile.path());
-                Map<String, Optional<String>> canonicalPartitionValues = scannedFile.partitionKeys();
-                transactionLogWriter.appendRemoveFileEntry(new RemoveFileEntry(
-                        toUriFormat(relativePath),
-                        createPartitionValuesMap(canonicalPartitionValues),
-                        writeTimestamp,
-                        false));
-            }
-
-            // Note: during writes we want to preserve original case of partition columns
-            List<String> partitionColumns = getPartitionColumns(
-                    optimizeHandle.getMetadataEntry().getOriginalPartitionColumns(),
-                    optimizeHandle.getTableColumns(),
-                    getColumnMappingMode(optimizeHandle.getMetadataEntry(), optimizeHandle.getProtocolEntry()));
-            appendAddFileEntries(transactionLogWriter, dataFileInfos, partitionColumns, getExactColumnNames(optimizeHandle.getMetadataEntry()), false);
-
-            transactionLogWriter.flush();
+            long commitVersion = commitOptimizeOperation(session, optimizeHandle, tableLocation, partitionColumns, scannedDataFiles, dataFileInfos);
             writeCommitted = true;
             Optional<Long> checkpointInterval = Optional.of(1L); // force checkpoint
             writeCheckpointIfNeeded(
@@ -2583,6 +2561,42 @@ public class DeltaLakeMetadata
             }
             throw new TrinoException(DELTA_LAKE_BAD_WRITE, "Failed to write Delta Lake transaction log entry", e);
         }
+    }
+
+    private long commitOptimizeOperation(
+            ConnectorSession session,
+            DeltaTableOptimizeHandle optimizeHandle,
+            String tableLocation,
+            List<String> partitionColumns,
+            Set<DeltaLakeScannedDataFile> scannedDataFiles,
+            List<DataFileInfo> dataFileInfos)
+            throws IOException
+    {
+        long readVersion = optimizeHandle.getCurrentVersion().orElseThrow(() -> new IllegalArgumentException("currentVersion not set"));
+        TransactionLogWriter transactionLogWriter = transactionLogWriterFactory.newWriter(session, tableLocation);
+
+        long createdTime = Instant.now().toEpochMilli();
+        long commitVersion = readVersion + 1;
+        transactionLogWriter.appendCommitInfoEntry(getCommitInfoEntry(session, IsolationLevel.WRITESERIALIZABLE, commitVersion, createdTime, OPTIMIZE_OPERATION, readVersion, false));
+        // TODO: Delta writes another field "operationMetrics" that I haven't
+        //   seen before. It contains delete/update metrics. Investigate/include it.
+
+        long writeTimestamp = Instant.now().toEpochMilli();
+
+        for (DeltaLakeScannedDataFile scannedFile : scannedDataFiles) {
+            String relativePath = relativePath(tableLocation, scannedFile.path());
+            Map<String, Optional<String>> canonicalPartitionValues = scannedFile.partitionKeys();
+            transactionLogWriter.appendRemoveFileEntry(new RemoveFileEntry(
+                    toUriFormat(relativePath),
+                    createPartitionValuesMap(canonicalPartitionValues),
+                    writeTimestamp,
+                    false));
+        }
+
+        appendAddFileEntries(transactionLogWriter, dataFileInfos, partitionColumns, getExactColumnNames(optimizeHandle.getMetadataEntry()), false);
+
+        transactionLogWriter.flush();
+        return commitVersion;
     }
 
     private void checkWriteAllowed(ConnectorSession session, DeltaLakeTableHandle table)
