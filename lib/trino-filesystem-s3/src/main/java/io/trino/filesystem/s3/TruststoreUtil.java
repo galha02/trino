@@ -28,7 +28,7 @@ public final class TruststoreUtil
 {
     private TruststoreUtil() {}
 
-    public static TrustManager[] createTrustStore(String trustStorePath, String trustStorePassword)
+    public static TrustManager[] createTruststore(String trustStorePath, String trustStorePassword)
     {
         try {
             KeyStore truststore = KeyStore.getInstance("JKS");

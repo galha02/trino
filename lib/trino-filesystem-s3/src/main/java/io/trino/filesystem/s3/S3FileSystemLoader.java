@@ -43,7 +43,7 @@ import java.util.function.Function;
 import static com.google.common.base.Preconditions.checkState;
 import static io.airlift.concurrent.Threads.daemonThreadsNamed;
 import static io.trino.filesystem.s3.S3FileSystemConfig.RetryMode.getRetryStrategy;
-import static io.trino.filesystem.s3.TruststoreUtil.createTrustStore;
+import static io.trino.filesystem.s3.TruststoreUtil.createTruststore;
 import static java.lang.Math.toIntExact;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.Executors.newCachedThreadPool;
@@ -215,11 +215,11 @@ final class S3FileSystemLoader
         config.getSocketConnectTimeout().ifPresent(timeout -> client.connectionTimeout(timeout.toJavaTime()));
         config.getSocketReadTimeout().ifPresent(timeout -> client.socketTimeout(timeout.toJavaTime()));
 
-        Optional<String> trustStorePath = config.getTruststorePath();
-        Optional<String> trustStorePassword = config.getTruststorePassword();
-        if (trustStorePath.isPresent()) {
-            checkState(trustStorePassword.isPresent(), "Truststore password for S3 FileSystem is not set");
-            client.tlsTrustManagersProvider(() -> createTrustStore(trustStorePath.get(), trustStorePassword.get()));
+        Optional<String> truststorePath = config.getTruststorePath();
+        Optional<String> truststorePassword = config.getTruststorePassword();
+        if (truststorePath.isPresent()) {
+            checkState(truststorePassword.isPresent(), "Truststore password for S3 FileSystem is not set");
+            client.tlsTrustManagersProvider(() -> createTruststore(truststorePath.get(), truststorePassword.get()));
         }
 
         if (config.getHttpProxy() != null) {
