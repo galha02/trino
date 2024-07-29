@@ -117,6 +117,8 @@ public class S3FileSystemConfig
     private RetryMode retryMode = RetryMode.LEGACY;
     private int maxErrorRetries = 10;
     private boolean supportsExclusiveCreate = true;
+    private Optional<String> truststorePath = Optional.empty();
+    private Optional<String> truststorePassword = Optional.empty();
 
     public String getAwsAccessKey()
     {
@@ -535,5 +537,39 @@ public class S3FileSystemConfig
     {
         this.supportsExclusiveCreate = supportsExclusiveCreate;
         return this;
+    }
+
+    public Optional<String> getTruststorePath()
+    {
+        return truststorePath;
+    }
+
+    @Config("s3.truststore-path")
+    @ConfigDescription("Path to a Java truststore file for S3 File System Client")
+    public S3FileSystemConfig setTruststorePath(String truststorePath)
+    {
+        this.truststorePath = Optional.ofNullable(truststorePath);
+        return this;
+    }
+
+    public Optional<String> getTruststorePassword()
+    {
+        return truststorePassword;
+    }
+
+    @Config("s3.truststore-password")
+    @ConfigDescription("Password to a Java truststore file for S3 File System Client")
+    @ConfigSecuritySensitive
+    public S3FileSystemConfig setTruststorePassword(String truststorePassword)
+    {
+        this.truststorePassword = Optional.ofNullable(truststorePassword);
+        return this;
+    }
+
+    @AssertTrue(message = "Properties s3.truststore-path and s3.truststore-password should be both set altogether or not set at all")
+    public boolean isTrustStoreConfigValid()
+    {
+        return truststorePath.isPresent() && truststorePassword.isPresent() ||
+               truststorePath.isEmpty() && truststorePassword.isEmpty();
     }
 }
