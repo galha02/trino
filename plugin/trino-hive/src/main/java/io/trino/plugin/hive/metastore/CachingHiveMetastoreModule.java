@@ -24,27 +24,15 @@ import io.trino.plugin.hive.metastore.cache.CachingHiveMetastoreConfig;
 import io.trino.plugin.hive.metastore.cache.ImpersonationCachingConfig;
 import io.trino.plugin.hive.metastore.cache.SharedHiveMetastoreCache;
 import io.trino.plugin.hive.metastore.cache.SharedHiveMetastoreCache.CachingHiveMetastoreFactory;
-import io.trino.plugin.hive.metastore.glue.GlueCache;
-import io.trino.plugin.hive.procedure.FlushMetadataCacheProcedure;
-import io.trino.spi.procedure.Procedure;
 
 import java.util.Optional;
 
-import static com.google.inject.multibindings.Multibinder.newSetBinder;
-import static com.google.inject.multibindings.OptionalBinder.newOptionalBinder;
 import static io.airlift.configuration.ConfigBinder.configBinder;
 import static org.weakref.jmx.guice.ExportBinder.newExporter;
 
 public class CachingHiveMetastoreModule
         extends AbstractConfigurationAwareModule
 {
-    private final boolean installFlushMetadataCacheProcedure;
-
-    public CachingHiveMetastoreModule(boolean installFlushMetadataCacheProcedure)
-    {
-        this.installFlushMetadataCacheProcedure = installFlushMetadataCacheProcedure;
-    }
-
     @Override
     protected void setup(Binder binder)
     {
@@ -55,11 +43,6 @@ public class CachingHiveMetastoreModule
         // export under the old name, for backwards compatibility
         newExporter(binder).export(HiveMetastoreFactory.class)
                 .as(generator -> generator.generatedNameOf(CachingHiveMetastore.class));
-
-        if (installFlushMetadataCacheProcedure) {
-            newOptionalBinder(binder, GlueCache.class);
-            newSetBinder(binder, Procedure.class).addBinding().toProvider(FlushMetadataCacheProcedure.class).in(Scopes.SINGLETON);
-        }
     }
 
     @Provides
