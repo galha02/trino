@@ -17,7 +17,7 @@ import com.google.common.collect.ImmutableMap;
 import io.opentelemetry.sdk.trace.data.SpanData;
 import io.trino.metastore.Database;
 import io.trino.metastore.HiveMetastore;
-import io.trino.plugin.hive.metastore.HiveMetastoreFactory;
+import io.trino.metastore.HiveMetastoreFactory;
 import io.trino.plugin.tpch.TpchPlugin;
 import io.trino.spi.security.PrincipalType;
 import io.trino.testing.AbstractTestQueryFramework;

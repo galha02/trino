@@ -15,8 +15,8 @@ package io.trino.plugin.iceberg;
 
 import io.trino.Session;
 import io.trino.metastore.HiveMetastore;
+import io.trino.metastore.HiveMetastoreFactory;
 import io.trino.metastore.Table;
-import io.trino.plugin.hive.metastore.HiveMetastoreFactory;
 import io.trino.sql.tree.ExplainType;
 import io.trino.testing.QueryRunner;
 import org.junit.jupiter.api.Test;
