@@ -39,6 +39,7 @@ import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Context;
 import io.trino.Session;
+import io.trino.cache.SplitAdmissionControllerProvider;
 import io.trino.execution.DynamicFiltersCollector;
 import io.trino.execution.DynamicFiltersCollector.VersionedDynamicFilterDomains;
 import io.trino.execution.ExecutionFailureInfo;
@@ -64,6 +65,7 @@ import io.trino.operator.TaskStats;
 import io.trino.server.DynamicFilterService;
 import io.trino.server.FailTaskRequest;
 import io.trino.server.TaskUpdateRequest;
+import io.trino.spi.HostAddress;
 import io.trino.spi.SplitWeight;
 import io.trino.spi.TrinoException;
 import io.trino.spi.TrinoTransportException;
@@ -139,6 +141,7 @@ public final class HttpRemoteTask
     private final Session session;
     private final Span stageSpan;
     private final String nodeId;
+    private final HostAddress nodeAddress;
     private final AtomicBoolean speculative;
     private final PlanFragment planFragment;
 
@@ -206,6 +209,8 @@ public final class HttpRemoteTask
     private final long requestSizeHeadroomInBytes;
     private final boolean adaptiveUpdateRequestSizeEnabled;
 
+    private final SplitAdmissionControllerProvider splitAdmissionControllerProvider;
+
     public HttpRemoteTask(
             Session session,
             Span stageSpan,
@@ -235,7 +240,8 @@ public final class HttpRemoteTask
             RemoteTaskStats stats,
             DynamicFilterService dynamicFilterService,
             Set<DynamicFilterId> outboundDynamicFilterIds,
-            Optional<DataSize> estimatedMemory)
+            Optional<DataSize> estimatedMemory,
+            SplitAdmissionControllerProvider splitAdmissionControllerProvider)
     {
         requireNonNull(session, "session is null");
         requireNonNull(stageSpan, "stageSpan is null");
@@ -259,6 +265,7 @@ public final class HttpRemoteTask
             this.session = session;
             this.stageSpan = stageSpan;
             this.nodeId = node.getNodeIdentifier();
+            this.nodeAddress = node.getHostAndPort();
             this.speculative = new AtomicBoolean(speculative);
             this.planFragment = planFragment;
             this.outputBuffers.set(outputBuffers);
@@ -278,7 +285,9 @@ public final class HttpRemoteTask
             this.stats = stats;
 
             for (Entry<PlanNodeId, Split> entry : initialSplits.entries()) {
-                ScheduledSplit scheduledSplit = new ScheduledSplit(nextSplitId.getAndIncrement(), entry.getKey(), entry.getValue());
+                Split split = entry.getValue();
+                split = split.withSplitAddressEnforced(split.getAddresses().contains(nodeAddress));
+                ScheduledSplit scheduledSplit = new ScheduledSplit(nextSplitId.getAndIncrement(), entry.getKey(), split);
                 pendingSplits.put(entry.getKey(), scheduledSplit);
             }
             maxUnacknowledgedSplits = getMaxUnacknowledgedSplitsPerTask(session);
@@ -386,6 +395,7 @@ public final class HttpRemoteTask
                     outboundDynamicFilterIds,
                     outboundDynamicFiltersCollector::updateDomains);
 
+            this.splitAdmissionControllerProvider = requireNonNull(splitAdmissionControllerProvider, "splitAdmissionControllerProvider is null");
             partitionedSplitCountTracker.setPartitionedSplits(getPartitionedSplitsInfo());
             updateSplitQueueSpace();
         }
@@ -449,6 +459,7 @@ public final class HttpRemoteTask
             int added = 0;
             long addedWeight = 0;
             for (Split split : splits) {
+                split = split.withSplitAddressEnforced(split.getAddresses().contains(nodeAddress));
                 if (pendingSplits.put(sourceId, new ScheduledSplit(nextSplitId.getAndIncrement(), sourceId, split))) {
                     if (isPartitionedSource) {
                         added++;
@@ -461,6 +472,9 @@ public final class HttpRemoteTask
                 pendingSourceSplitsWeight = addExact(pendingSourceSplitsWeight, addedWeight);
                 partitionedSplitCountTracker.setPartitionedSplits(getPartitionedSplitsInfo());
             }
+            // Notify that splits have been scheduled. This is needed such that no two same splits are scheduled on
+            // the same worker at the same time thus, to effectively utilize the cache.
+            splitAdmissionControllerProvider.get(sourceId).splitsScheduled(ImmutableList.copyOf(splits));
             needsUpdate = true;
         }
         updateSplitQueueSpace();
