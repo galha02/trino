@@ -134,7 +134,10 @@ values. Typical usage does not require you to configure them.
 * - ``delta.checkpoint-filtering.enabled``
   - Enable pruning of data file entries as well as data file statistics
     columns which are irrelevant for the query when reading Delta Lake
-    checkpoint files.
+    checkpoint files. Reading only the relevant active file data from
+    the checkpoint, directly from the storage, instead of relying on
+    the active files caching, will likely result in decreased memory
+    pressure on the coordinator.
     The equivalent catalog session property is ``checkpoint_filtering_enabled``.
   - ``true``
 * - `delta.dynamic-filtering.wait-timeout`
@@ -361,8 +364,16 @@ features](https://github.com/delta-io/delta/blob/master/PROTOCOL.md#table-featur
 * - Column mapping
   - Readers and writers
 * - Deletion vectors
+  - Readers and writers
+* - Iceberg compatibility V1 & V2
   - Readers only
+* - Invariants
+  - Writers only
 * - Timestamp without time zone
+  - Readers and writers
+* - Type widening
+  - Readers only
+* - Vacuum protocol check
   - Readers and writers
 * - V2 checkpoint
   - Readers only

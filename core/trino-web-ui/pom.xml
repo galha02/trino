@@ -5,7 +5,7 @@
     <parent>
         <groupId>io.trino</groupId>
         <artifactId>trino-root</artifactId>
-        <version>454-SNAPSHOT</version>
+        <version>455-SNAPSHOT</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
@@ -88,7 +88,7 @@
                         </configuration>
                     </execution>
                     <execution>
-                        <id>package webui</id>
+                        <id>package (webapp)</id>
                         <goals>
                             <goal>npm</goal>
                         </goals>
@@ -99,18 +99,29 @@
                         </configuration>
                     </execution>
                     <execution>
-                        <id>flow check</id>
+                        <id>check (webapp)</id>
                         <goals>
                             <goal>npm</goal>
                         </goals>
                         <phase>verify</phase>
                         <configuration>
-                            <arguments>run flow</arguments>
+                            <arguments>run check</arguments>
                             <workingDirectory>src/main/resources/webapp/src</workingDirectory>
                         </configuration>
                     </execution>
                     <execution>
-                        <id>install dependencies and build (webapp-preview)</id>
+                        <id>check (webapp-preview)</id>
+                        <goals>
+                            <goal>npm</goal>
+                        </goals>
+                        <phase>verify</phase>
+                        <configuration>
+                            <arguments>run check</arguments>
+                            <workingDirectory>src/main/resources/webapp-preview</workingDirectory>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>package (webapp-preview)</id>
                         <goals>
                             <goal>npm</goal>
                         </goals>
