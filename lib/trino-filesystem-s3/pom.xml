@@ -304,6 +304,7 @@
                         <configuration>
                             <excludes>
                                 <exclude>**/TestS3FileSystemAwsS3.java</exclude>
+                                <exclude>**/TestS3FileSystemAwsS3WithSseCustomerKey.java</exclude>
                             </excludes>
                         </configuration>
                     </plugin>
@@ -321,6 +322,7 @@
                         <configuration>
                             <includes>
                                 <include>**/TestS3FileSystemAwsS3.java</include>
+                                <include>**/TestS3FileSystemAwsS3WithSseCustomerKey.java</include>
                             </includes>
                         </configuration>
                     </plugin>

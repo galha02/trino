@@ -23,6 +23,7 @@ import io.airlift.units.DataSize;
 import io.airlift.units.Duration;
 import io.airlift.units.MaxDataSize;
 import io.airlift.units.MinDataSize;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import software.amazon.awssdk.retries.api.RetryStrategy;
@@ -41,7 +42,7 @@ public class S3FileSystemConfig
 {
     public enum S3SseType
     {
-        NONE, S3, KMS
+        NONE, S3, KMS, CUSTOMER
     }
 
     public enum ObjectCannedAcl
@@ -96,6 +97,7 @@ public class S3FileSystemConfig
     private String stsRegion;
     private S3SseType sseType = S3SseType.NONE;
     private String sseKmsKeyId;
+    private String sseCustomerKey;
     private boolean useWebIdentityTokenCredentialsProvider;
     private DataSize streamingPartSize = DataSize.of(16, MEGABYTE);
     private boolean requesterPays;
@@ -115,6 +117,8 @@ public class S3FileSystemConfig
     private RetryMode retryMode = RetryMode.LEGACY;
     private int maxErrorRetries = 10;
     private boolean supportsExclusiveCreate = true;
+    private Optional<String> truststorePath = Optional.empty();
+    private Optional<String> truststorePassword = Optional.empty();
 
     public String getAwsAccessKey()
     {
@@ -320,6 +324,29 @@ public class S3FileSystemConfig
         return this;
     }
 
+    public String getSseCustomerKey()
+    {
+        return sseCustomerKey;
+    }
+
+    @Config("s3.sse.customer-key")
+    @ConfigDescription("Customer Key to use for S3 server-side encryption with Customer key (SSE-C)")
+    @ConfigSecuritySensitive
+    public S3FileSystemConfig setSseCustomerKey(String sseCustomerKey)
+    {
+        this.sseCustomerKey = sseCustomerKey;
+        return this;
+    }
+
+    @AssertTrue(message = "s3.sse.customer-key has to be set for server-side encryption with customer-provided key")
+    public boolean isSseWithCustomerKeyConfigValid()
+    {
+        if (sseType == S3SseType.CUSTOMER) {
+            return sseCustomerKey != null;
+        }
+        return true;
+    }
+
     @NotNull
     @MinDataSize("5MB")
     @MaxDataSize("256MB")
@@ -510,5 +537,39 @@ public class S3FileSystemConfig
     {
         this.supportsExclusiveCreate = supportsExclusiveCreate;
         return this;
+    }
+
+    public Optional<String> getTruststorePath()
+    {
+        return truststorePath;
+    }
+
+    @Config("s3.truststore-path")
+    @ConfigDescription("Path to a Java truststore file for S3 File System Client")
+    public S3FileSystemConfig setTruststorePath(String truststorePath)
+    {
+        this.truststorePath = Optional.ofNullable(truststorePath);
+        return this;
+    }
+
+    public Optional<String> getTruststorePassword()
+    {
+        return truststorePassword;
+    }
+
+    @Config("s3.truststore-password")
+    @ConfigDescription("Password to a Java truststore file for S3 File System Client")
+    @ConfigSecuritySensitive
+    public S3FileSystemConfig setTruststorePassword(String truststorePassword)
+    {
+        this.truststorePassword = Optional.ofNullable(truststorePassword);
+        return this;
+    }
+
+    @AssertTrue(message = "Properties s3.truststore-path and s3.truststore-password should be both set altogether or not set at all")
+    public boolean isTrustStoreConfigValid()
+    {
+        return truststorePath.isPresent() && truststorePassword.isPresent() ||
+               truststorePath.isEmpty() && truststorePassword.isEmpty();
     }
 }
