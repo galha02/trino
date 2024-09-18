@@ -17,6 +17,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.delta.kernel.data.Row;
+import io.delta.kernel.engine.Engine;
 import io.trino.spi.connector.ConnectorSplit;
 
 import static io.trino.plugin.deltalake.kernel.KernelRowSerDeUtils.deserializeRowFromJson;
@@ -43,12 +44,6 @@ public class KernelDeltaLakeSplit
         this.location = location;
         this.serializedScanState = serializedScanState;
         this.serializedScanFile = serializedScanFile;
-    }
-
-    @Override
-    public Object getInfo()
-    {
-        return null;
     }
 
     @JsonProperty
@@ -82,14 +77,14 @@ public class KernelDeltaLakeSplit
     }
 
     @JsonIgnore
-    public Row getScanState()
+    public Row getScanState(Engine engine)
     {
-        return deserializeRowFromJson(KernelClient.getTableClient(), serializedScanState);
+        return deserializeRowFromJson(engine, serializedScanState);
     }
 
     @JsonIgnore
-    public Row getScanFile()
+    public Row getScanFile(Engine engine)
     {
-        return deserializeRowFromJson(KernelClient.getTableClient(), serializedScanFile);
+        return deserializeRowFromJson(engine, serializedScanFile);
     }
 }

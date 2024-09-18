@@ -16,8 +16,10 @@ package io.trino.plugin.deltalake.kernel;
 import io.delta.kernel.Scan;
 import io.delta.kernel.data.FilteredColumnarBatch;
 import io.delta.kernel.data.Row;
+import io.delta.kernel.engine.Engine;
 import io.delta.kernel.internal.util.Utils;
 import io.delta.kernel.utils.CloseableIterator;
+import io.trino.filesystem.TrinoFileSystemFactory;
 import io.trino.spi.connector.ConnectorSession;
 import io.trino.spi.connector.ConnectorSplit;
 import io.trino.spi.connector.ConnectorSplitManager;
@@ -26,6 +28,8 @@ import io.trino.spi.connector.ConnectorTableHandle;
 import io.trino.spi.connector.ConnectorTransactionHandle;
 import io.trino.spi.connector.Constraint;
 import io.trino.spi.connector.DynamicFilter;
+import io.trino.spi.type.TypeManager;
+import jakarta.inject.Inject;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,6 +41,18 @@ import static java.util.concurrent.CompletableFuture.completedFuture;
 public class KernelDeltaLakeSplitManager
         implements ConnectorSplitManager
 {
+    private final TrinoFileSystemFactory trinoFileSystemFactory;
+    private final TypeManager typeManager;
+
+    @Inject
+    public KernelDeltaLakeSplitManager(
+            TrinoFileSystemFactory trinoFileSystemFactory,
+            TypeManager typeManager)
+    {
+        this.trinoFileSystemFactory = trinoFileSystemFactory;
+        this.typeManager = typeManager;
+    }
+
     @Override
     public ConnectorSplitSource getSplits(
             ConnectorTransactionHandle transaction,
@@ -46,21 +62,24 @@ public class KernelDeltaLakeSplitManager
             Constraint constraint)
     {
         // TODO: dynamic filtering.
-        return new DeltaSplitSource(session, (KernelDeltaLakeTableHandle) table);
+        Engine engine = KernelClient.createEngine(trinoFileSystemFactory.create(session), typeManager);
+        return new DeltaSplitSource(engine, (KernelDeltaLakeTableHandle) table);
     }
 
     private static class DeltaSplitSource
             implements ConnectorSplitSource
     {
         private final KernelDeltaLakeTableHandle deltaTable;
+        private final Engine engine;
 
         // working state
         private String serializedScanState;
         private CloseableIterator<FilteredColumnarBatch> scanFileBatchIterator;
         private CloseableIterator<Row> scanFileIterator;
 
-        DeltaSplitSource(ConnectorSession session, KernelDeltaLakeTableHandle deltaTableHandle)
+        DeltaSplitSource(Engine engine, KernelDeltaLakeTableHandle deltaTableHandle)
         {
+            this.engine = engine;
             this.deltaTable = deltaTableHandle;
         }
 
@@ -123,9 +142,9 @@ public class KernelDeltaLakeSplitManager
         private void initScanFileBatchIteratorIfNotDone()
         {
             if (scanFileBatchIterator == null) {
-                Scan scan = KernelClient.createScan(deltaTable);
-                Row scanState = scan.getScanState(KernelClient.getTableClient());
-                scanFileBatchIterator = scan.getScanFiles(KernelClient.getTableClient());
+                Scan scan = KernelClient.createScan(engine, deltaTable);
+                Row scanState = scan.getScanState(engine);
+                scanFileBatchIterator = scan.getScanFiles(engine);
                 serializedScanState = KernelRowSerDeUtils.serializeRowToJson(scanState);
             }
         }

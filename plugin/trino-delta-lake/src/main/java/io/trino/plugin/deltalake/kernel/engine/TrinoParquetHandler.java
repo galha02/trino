@@ -11,16 +11,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.trino.plugin.deltalake.kernel.clients;
+package io.trino.plugin.deltalake.kernel.engine;
 
-import io.delta.kernel.client.ParquetHandler;
 import io.delta.kernel.data.ColumnarBatch;
+import io.delta.kernel.data.FilteredColumnarBatch;
+import io.delta.kernel.engine.ParquetHandler;
+import io.delta.kernel.expressions.Column;
 import io.delta.kernel.expressions.Predicate;
 import io.delta.kernel.internal.util.Utils;
 import io.delta.kernel.types.DataType;
 import io.delta.kernel.types.StructField;
 import io.delta.kernel.types.StructType;
 import io.delta.kernel.utils.CloseableIterator;
+import io.delta.kernel.utils.DataFileStatus;
 import io.delta.kernel.utils.FileStatus;
 import io.trino.filesystem.Location;
 import io.trino.filesystem.TrinoFileSystem;
@@ -40,7 +43,6 @@ import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.predicate.TupleDomain;
 import io.trino.spi.type.Type;
 import io.trino.spi.type.TypeManager;
-import org.apache.hadoop.conf.Configuration;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -54,19 +56,14 @@ import java.util.OptionalLong;
 import static io.trino.plugin.hive.parquet.ParquetPageSourceFactory.PARQUET_ROW_INDEX_COLUMN;
 import static java.util.Objects.requireNonNull;
 
-public class KernelParquetHandler
+public class TrinoParquetHandler
         implements ParquetHandler
 {
-    private final Configuration configuration;
     private final TrinoFileSystem fileSystem;
     private final TypeManager typeManager;
 
-    public KernelParquetHandler(
-            Configuration configuration,
-            TrinoFileSystem fileSystem,
-            TypeManager typeManager)
+    public TrinoParquetHandler(TrinoFileSystem fileSystem, TypeManager typeManager)
     {
-        this.configuration = configuration;
         this.fileSystem = fileSystem;
         this.typeManager = typeManager;
     }
@@ -79,6 +76,20 @@ public class KernelParquetHandler
             throws IOException
     {
         return readFiles(closeableIterator, structType);
+    }
+
+    @Override
+    public CloseableIterator<DataFileStatus> writeParquetFiles(String directoryPath, CloseableIterator<FilteredColumnarBatch> dataIter, List<Column> statsColumns)
+            throws IOException
+    {
+        throw new UnsupportedOperationException("not yet implemented");
+    }
+
+    @Override
+    public void writeParquetFileAtomically(String filePath, CloseableIterator<FilteredColumnarBatch> data)
+            throws IOException
+    {
+        throw new UnsupportedOperationException("not yet implemented");
     }
 
     private CloseableIterator<ColumnarBatch> readFiles(CloseableIterator<FileStatus> fileIter, StructType physicalSchema)

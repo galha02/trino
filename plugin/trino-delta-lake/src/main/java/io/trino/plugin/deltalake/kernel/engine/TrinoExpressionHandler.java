@@ -11,10 +11,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.trino.plugin.deltalake.kernel.clients;
+package io.trino.plugin.deltalake.kernel.engine;
 
-import io.delta.kernel.client.ExpressionHandler;
 import io.delta.kernel.data.ColumnVector;
+import io.delta.kernel.engine.ExpressionHandler;
 import io.delta.kernel.expressions.Expression;
 import io.delta.kernel.expressions.ExpressionEvaluator;
 import io.delta.kernel.expressions.Predicate;
@@ -22,7 +22,7 @@ import io.delta.kernel.expressions.PredicateEvaluator;
 import io.delta.kernel.types.DataType;
 import io.delta.kernel.types.StructType;
 
-public class KernelExpressionHandler
+public class TrinoExpressionHandler
         implements ExpressionHandler
 {
     @Override

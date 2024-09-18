@@ -14,11 +14,11 @@
 package io.trino.plugin.deltalake.kernel;
 
 import io.delta.kernel.Scan;
-import io.delta.kernel.client.TableClient;
 import io.delta.kernel.data.ColumnVector;
 import io.delta.kernel.data.ColumnarBatch;
 import io.delta.kernel.data.FilteredColumnarBatch;
 import io.delta.kernel.data.Row;
+import io.delta.kernel.engine.Engine;
 import io.delta.kernel.internal.InternalScanFileUtils;
 import io.delta.kernel.internal.data.ScanStateRow;
 import io.delta.kernel.types.StructType;
@@ -30,7 +30,6 @@ import io.trino.spi.Page;
 import io.trino.spi.block.Block;
 import io.trino.spi.connector.ConnectorPageSource;
 import io.trino.spi.type.TypeManager;
-import org.apache.hadoop.conf.Configuration;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -113,20 +112,20 @@ public class KernelDeltaLakePageSource
     private void initBatchIteratorIfNotDone()
     {
         if (dataBatchIterator == null) {
-            TableClient tableClient = KernelClient.getTableClient(new Configuration(), trinoFileSystem, typeManager);
-            Row scanState = split.getScanState();
-            Row scanFile = split.getScanFile();
+            Engine engine = KernelClient.createEngine(trinoFileSystem, typeManager);
+            Row scanState = split.getScanState(engine);
+            Row scanFile = split.getScanFile(engine);
             FileStatus fileStatus = InternalScanFileUtils.getAddFileStatus(scanFile);
-            StructType physicalReadSchema = ScanStateRow.getPhysicalDataReadSchema(tableClient, scanState);
+            StructType physicalReadSchema = ScanStateRow.getPhysicalDataReadSchema(engine, scanState);
             try {
                 CloseableIterator<ColumnarBatch> physicalDataIter =
-                        tableClient.getParquetHandler().readParquetFiles(
+                        engine.getParquetHandler().readParquetFiles(
                                 singletonCloseableIterator(fileStatus),
                                 physicalReadSchema,
                                 Optional.empty());
                 dataBatchIterator =
                         Scan.transformPhysicalData(
-                                tableClient,
+                                engine,
                                 scanState,
                                 scanFile,
                                 physicalDataIter);

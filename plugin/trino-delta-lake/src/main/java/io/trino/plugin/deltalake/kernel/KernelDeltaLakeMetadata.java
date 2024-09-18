@@ -17,6 +17,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import io.airlift.json.JsonCodec;
 import io.delta.kernel.Snapshot;
+import io.delta.kernel.engine.Engine;
 import io.delta.kernel.types.StructType;
 import io.trino.filesystem.TrinoFileSystemFactory;
 import io.trino.plugin.deltalake.DataFileInfo;
@@ -65,6 +66,7 @@ import static io.trino.plugin.deltalake.DeltaLakeColumnHandle.fileModifiedTimeCo
 import static io.trino.plugin.deltalake.DeltaLakeColumnHandle.fileSizeColumnHandle;
 import static io.trino.plugin.deltalake.DeltaLakeColumnHandle.pathColumnHandle;
 import static io.trino.plugin.deltalake.DeltaLakeTableProperties.LOCATION_PROPERTY;
+import static io.trino.plugin.deltalake.kernel.KernelClient.createEngine;
 import static io.trino.plugin.deltalake.kernel.KernelSchemaUtils.toTrinoType;
 import static io.trino.spi.StandardErrorCode.NOT_SUPPORTED;
 import static java.util.Objects.requireNonNull;
@@ -146,7 +148,9 @@ public class KernelDeltaLakeMetadata
         boolean managed = table.get().managed();
         String tableLocation = table.get().location();
 
-        Optional<Snapshot> snapshot = KernelClient.getSnapshot(tableLocation);
+        Engine engine = createEngine(fileSystemFactory.create(session.getIdentity()), typeManager);
+
+        Optional<Snapshot> snapshot = KernelClient.getSnapshot(engine, tableLocation);
         if (snapshot.isEmpty()) {
             return null;
         }
@@ -156,7 +160,7 @@ public class KernelDeltaLakeMetadata
                 managed,
                 tableLocation,
                 Optional.empty(),
-                KernelClient.getVersion(snapshot.get()),
+                KernelClient.getVersion(engine, snapshot.get()),
                 snapshot);
     }
 
@@ -172,9 +176,10 @@ public class KernelDeltaLakeMetadata
                         () -> new RuntimeException("table not found"));
 
         List<ColumnMetadata> columns = KernelClient.getTableColumnMetadata(
+                createEngine(fileSystemFactory.create(session.getIdentity()), typeManager),
+                typeManager,
                 tableHandle.getSchemaTableName(),
-                snapshot,
-                typeManager);
+                snapshot);
 
         // DeltaLakeTable deltaTable = DeltaLakeTable.builder(snapshot.getSchema(tableClient)).build();
         ImmutableMap.Builder<String, Object> properties = ImmutableMap.<String, Object>builder()
@@ -208,8 +213,9 @@ public class KernelDeltaLakeMetadata
         Snapshot snapshot = tableHandle.getDeltaSnapshot().orElseThrow(
                 // TODO: this shouldn't happen, but it's better to handle it gracefully
                 () -> new RuntimeException("table not found"));
+        Engine engine = createEngine(fileSystemFactory.create(session.getIdentity()), typeManager);
 
-        return getColumns(tableHandle.getSchemaTableName(), KernelClient.getSchema(snapshot)).stream()
+        return getColumns(tableHandle.getSchemaTableName(), KernelClient.getSchema(engine, snapshot)).stream()
                 .collect(Collectors.toMap(DeltaLakeColumnHandle::columnName, column -> column));
     }
 
@@ -221,7 +227,8 @@ public class KernelDeltaLakeMetadata
                 // TODO: this shouldn't happen, but it's better to handle it gracefully
                 () -> new RuntimeException("table not found"));
 
-        DeltaLakeTable deltaTable = DeltaLakeTable.builder(KernelClient.getSchema(snapshot)).build();
+        Engine engine = createEngine(fileSystemFactory.create(session.getIdentity()), typeManager);
+        DeltaLakeTable deltaTable = DeltaLakeTable.builder(KernelClient.getSchema(engine, snapshot)).build();
         return getColumnMetadata(deltaTable, (DeltaLakeColumnHandle) columnHandle);
     }
 

@@ -191,7 +191,7 @@
         <dep.aws-sdk.version>1.12.772</dep.aws-sdk.version>
         <dep.cassandra.version>4.17.0</dep.cassandra.version>
         <dep.confluent.version>7.5.1</dep.confluent.version>
-        <dep.delta.kernel.version>3.1.0</dep.delta.kernel.version>
+        <dep.delta.kernel.version>3.2.0</dep.delta.kernel.version>
         <dep.docker.images.version>100</dep.docker.images.version>
         <dep.drift.version>1.22</dep.drift.version>
         <dep.flyway.version>10.18.0</dep.flyway.version>

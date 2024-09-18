@@ -11,32 +11,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.trino.plugin.deltalake.kernel.clients;
+package io.trino.plugin.deltalake.kernel.engine;
 
-import io.delta.kernel.client.ExpressionHandler;
-import io.delta.kernel.client.FileSystemClient;
-import io.delta.kernel.client.JsonHandler;
-import io.delta.kernel.client.ParquetHandler;
-import io.delta.kernel.client.TableClient;
-import io.delta.kernel.defaults.client.DefaultExpressionHandler;
-import io.delta.kernel.defaults.client.DefaultFileSystemClient;
+import io.delta.kernel.engine.Engine;
+import io.delta.kernel.engine.ExpressionHandler;
+import io.delta.kernel.engine.FileSystemClient;
+import io.delta.kernel.engine.JsonHandler;
+import io.delta.kernel.engine.ParquetHandler;
 import io.trino.filesystem.TrinoFileSystem;
 import io.trino.spi.type.TypeManager;
-import org.apache.hadoop.conf.Configuration;
 
-public class KernelTableClient
-        implements TableClient
+public class TrinoEngine
+        implements Engine
 {
-    private final Configuration configuration;
     private final TrinoFileSystem fileSystem;
     private final TypeManager typeManager;
 
-    public KernelTableClient(
-            Configuration configuration,
-            TrinoFileSystem fileSystem,
-            TypeManager typeManager)
+    public TrinoEngine(TrinoFileSystem fileSystem, TypeManager typeManager)
     {
-        this.configuration = configuration;
         this.fileSystem = fileSystem;
         this.typeManager = typeManager;
     }
@@ -44,27 +36,24 @@ public class KernelTableClient
     @Override
     public ExpressionHandler getExpressionHandler()
     {
-        return new DefaultExpressionHandler();
+        return new TrinoExpressionHandler();
     }
 
     @Override
     public JsonHandler getJsonHandler()
     {
-        return new KernelJsonHandler(configuration);
+        return new TrinoJsonHandler();
     }
 
     @Override
     public FileSystemClient getFileSystemClient()
     {
-        return new DefaultFileSystemClient(configuration);
+        return new TrinoFileSystemClient();
     }
 
     @Override
     public ParquetHandler getParquetHandler()
     {
-        return new KernelParquetHandler(
-                configuration,
-                fileSystem,
-                typeManager);
+        return new TrinoParquetHandler(fileSystem, typeManager);
     }
 }

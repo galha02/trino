@@ -16,15 +16,13 @@ package io.trino.plugin.deltalake.kernel;
 import io.delta.kernel.Scan;
 import io.delta.kernel.Snapshot;
 import io.delta.kernel.Table;
-import io.delta.kernel.client.TableClient;
-import io.delta.kernel.defaults.client.DefaultTableClient;
+import io.delta.kernel.engine.Engine;
 import io.delta.kernel.types.StructType;
 import io.trino.filesystem.TrinoFileSystem;
-import io.trino.plugin.deltalake.kernel.clients.KernelTableClient;
+import io.trino.plugin.deltalake.kernel.engine.TrinoEngine;
 import io.trino.spi.connector.ColumnMetadata;
 import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.type.TypeManager;
-import org.apache.hadoop.conf.Configuration;
 
 import java.util.List;
 import java.util.Map;
@@ -39,22 +37,26 @@ public class KernelClient
 {
     private KernelClient() {}
 
-    private static DefaultTableClient tableClient = DefaultTableClient.create(new Configuration());
     private static final Map<SnapshotCacheKey, Snapshot> snapshotCache = new ConcurrentHashMap<>();
 
-    public static Scan createScan(KernelDeltaLakeTableHandle tableHandle)
+    public static Engine createEngine(TrinoFileSystem fileSystem, TypeManager typeManager)
+    {
+        return new TrinoEngine(fileSystem, typeManager);
+    }
+
+    public static Scan createScan(Engine engine, KernelDeltaLakeTableHandle tableHandle)
     {
         return tableHandle.getDeltaSnapshot().orElseThrow()
-                .getScanBuilder(tableClient)
+                .getScanBuilder(engine)
                 // TODO: extract projects and filters from tableHandle
                 .build();
     }
 
-    public static Optional<Snapshot> getSnapshot(String tableLocation)
+    public static Optional<Snapshot> getSnapshot(Engine engine, String tableLocation)
     {
         try {
-            Table deltaTable = Table.forPath(tableClient, tableLocation);
-            return Optional.of(deltaTable.getLatestSnapshot(tableClient));
+            Table deltaTable = Table.forPath(engine, tableLocation);
+            return Optional.of(deltaTable.getLatestSnapshot(engine));
         }
         catch (Exception e) {
             // TODO: Log
@@ -63,11 +65,12 @@ public class KernelClient
     }
 
     public static List<ColumnMetadata> getTableColumnMetadata(
+            Engine engine,
+            TypeManager typeManager,
             SchemaTableName tableName,
-            Snapshot snapshot,
-            TypeManager typeManager)
+            Snapshot snapshot)
     {
-        StructType schema = snapshot.getSchema(tableClient);
+        StructType schema = snapshot.getSchema(engine);
         return schema.fields().stream()
                 .map(field ->
                         new ColumnMetadata(
@@ -76,47 +79,14 @@ public class KernelClient
                 .collect(toImmutableList());
     }
 
-    public static TableClient getTableClient()
+    public static long getVersion(Engine engine, Snapshot snapshot)
     {
-        return tableClient;
+        return snapshot.getVersion(engine);
     }
 
-    public static TableClient getTableClient(
-            Configuration configuration,
-            TrinoFileSystem fileSystem,
-            TypeManager typeManager)
+    public static StructType getSchema(Engine engine, Snapshot snapshot)
     {
-        return new KernelTableClient(configuration, fileSystem, typeManager);
-    }
-
-    public static Optional<Snapshot> getSnapshot(String tableLocation, long snapshotVersion)
-    {
-        SnapshotCacheKey snapshotCacheKey = new SnapshotCacheKey(tableLocation, snapshotVersion);
-        return Optional.ofNullable(snapshotCache.computeIfAbsent(snapshotCacheKey, key -> {
-            // TODO: should get the snapshot for the given version and not the latest snapshot
-            Optional<Snapshot> snapshot = getSnapshot(tableLocation);
-            if (snapshot.isEmpty()) {
-                return null;
-            }
-            return snapshot.get();
-        }));
-    }
-
-    public static List<String> getLowercasePartitionColumns(Snapshot snapshot)
-    {
-        Scan scan = snapshot.getScanBuilder(tableClient).build();
-        scan.getScanState(tableClient);
-        return null;
-    }
-
-    public static long getVersion(Snapshot snapshot)
-    {
-        return snapshot.getVersion(tableClient);
-    }
-
-    public static StructType getSchema(Snapshot snapshot)
-    {
-        return snapshot.getSchema(tableClient);
+        return snapshot.getSchema(engine);
     }
 
     static class SnapshotCacheKey

@@ -17,9 +17,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.delta.kernel.client.TableClient;
 import io.delta.kernel.data.Row;
 import io.delta.kernel.defaults.internal.data.DefaultJsonRow;
+import io.delta.kernel.engine.Engine;
 import io.delta.kernel.internal.util.VectorUtils;
 import io.delta.kernel.types.ArrayType;
 import io.delta.kernel.types.BooleanType;
@@ -69,13 +69,13 @@ public class KernelRowSerDeUtils
     /**
      * Utility method to deserialize a {@link Row} object from the JSON form.
      */
-    public static Row deserializeRowFromJson(TableClient tableClient, String jsonRowWithSchema)
+    public static Row deserializeRowFromJson(Engine engine, String jsonRowWithSchema)
     {
         try {
             JsonNode jsonNode = OBJECT_MAPPER.readTree(jsonRowWithSchema);
             JsonNode schemaNode = jsonNode.get("schema");
             StructType schema =
-                    tableClient.getJsonHandler().deserializeStructType(schemaNode.asText());
+                    engine.getJsonHandler().deserializeStructType(schemaNode.asText());
             return parseRowFromJsonWithSchema((ObjectNode) jsonNode.get("row"), schema);
         }
         catch (JsonProcessingException ex) {

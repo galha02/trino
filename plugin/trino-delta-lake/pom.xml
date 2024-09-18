@@ -152,11 +152,6 @@
         </dependency>
 
         <dependency>
-            <groupId>io.trino.hadoop</groupId>
-            <artifactId>hadoop-apache</artifactId>
-        </dependency>
-
-        <dependency>
             <groupId>io.trino.hive</groupId>
             <artifactId>hive-thrift</artifactId>
         </dependency>
@@ -200,16 +195,6 @@
                     <artifactId>javax.annotation-api</artifactId>
                 </exclusion>
             </exclusions>
-        </dependency>
-
-        <dependency>
-            <groupId>org.apache.parquet</groupId>
-            <artifactId>parquet-hadoop</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.apache.parquet</groupId>
-            <artifactId>parquet-jackson</artifactId>
         </dependency>
 
         <dependency>
@@ -475,14 +460,6 @@
             <scope>test</scope>
         </dependency>
 
-        <!--
-        <dependency>
-            <groupId>io.trino.hadoop</groupId>
-            <artifactId>hadoop-apache</artifactId>
-            <scope>test</scope>
-        </dependency>
-        -->
-
         <dependency>
             <groupId>io.trino.tpch</groupId>
             <artifactId>tpch</artifactId>
@@ -562,17 +539,20 @@
                     <ignoredUsedUndeclaredDependencies>
                         <ignoredUnusedDeclaredDependency>jakarta.inject:jakarta.inject-api</ignoredUnusedDeclaredDependency>
                     </ignoredUsedUndeclaredDependencies>
-                    <ignoredUnusedDeclaredDependencies>
-                        <ignoredUsedUndeclaredDependency>org.apache.hadoop:hadoop-client-runtime</ignoredUsedUndeclaredDependency>
-                        <ignoredUsedUndeclaredDependency>org.apache.parquet:parquet-hadoop</ignoredUsedUndeclaredDependency>
-                        <ignoredUsedUndeclaredDependency>org.apache.parquet:parquet-jackson</ignoredUsedUndeclaredDependency>
-                    </ignoredUnusedDeclaredDependencies>
                 </configuration>
             </plugin>
 
             <plugin>
                 <groupId>org.antlr</groupId>
                 <artifactId>antlr4-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>6</source>
+                    <target>6</target>
+                </configuration>
             </plugin>
         </plugins>
     </build>

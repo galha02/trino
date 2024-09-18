@@ -11,17 +11,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.trino.plugin.deltalake.kernel.clients;
+package io.trino.plugin.deltalake.kernel.engine;
 
-import io.delta.kernel.client.FileReadRequest;
-import io.delta.kernel.client.FileSystemClient;
+import io.delta.kernel.engine.FileReadRequest;
+import io.delta.kernel.engine.FileSystemClient;
 import io.delta.kernel.utils.CloseableIterator;
 import io.delta.kernel.utils.FileStatus;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 
-public class KernelFileSystemClient
+public class TrinoFileSystemClient
         implements FileSystemClient
 {
     @Override
@@ -43,5 +43,12 @@ public class KernelFileSystemClient
             throws IOException
     {
         return null;
+    }
+
+    @Override
+    public boolean mkdirs(String s)
+            throws IOException
+    {
+        return false;
     }
 }
