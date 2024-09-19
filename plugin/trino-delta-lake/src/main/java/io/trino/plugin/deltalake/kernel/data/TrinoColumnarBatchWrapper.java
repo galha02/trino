@@ -16,21 +16,15 @@ package io.trino.plugin.deltalake.kernel.data;
 import io.delta.kernel.data.ColumnVector;
 import io.delta.kernel.data.ColumnarBatch;
 import io.delta.kernel.data.Row;
-import io.delta.kernel.defaults.internal.data.vector.DefaultConstantVector;
-import io.delta.kernel.types.DataType;
-import io.delta.kernel.types.IntegerType;
-import io.delta.kernel.types.LongType;
 import io.delta.kernel.types.StructField;
 import io.delta.kernel.types.StructType;
 import io.delta.kernel.utils.CloseableIterator;
 import io.trino.spi.Page;
 import io.trino.spi.block.Block;
-import io.trino.spi.block.RunLengthEncodedBlock;
 
 import java.util.ArrayList;
 
-import static io.trino.spi.type.BigintType.BIGINT;
-import static io.trino.spi.type.IntegerType.INTEGER;
+import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.Objects.requireNonNull;
 
 public class TrinoColumnarBatchWrapper
@@ -58,12 +52,6 @@ public class TrinoColumnarBatchWrapper
     }
 
     @Override
-    public ColumnarBatch slice(int start, int end)
-    {
-        return ColumnarBatch.super.slice(start, end);
-    }
-
-    @Override
     public CloseableIterator<Row> getRows()
     {
         return ColumnarBatch.super.getRows();
@@ -72,37 +60,17 @@ public class TrinoColumnarBatchWrapper
     @Override
     public ColumnarBatch withNewColumn(int i, StructField structField, ColumnVector columnVector)
     {
-        switch (columnVector) {
-            case DefaultConstantVector defaultConstantVector -> {
-                DataType dataType = defaultConstantVector.getDataType();
-                Page newPage = null;
-                switch (dataType) {
-                    case LongType longType -> {
-                        Block block = RunLengthEncodedBlock.create(
-                                BIGINT,
-                                defaultConstantVector.getLong(0),
-                                defaultConstantVector.getSize());
-                        newPage = page.appendColumn(block);
-                    }
-                    case IntegerType integerType -> {
-                        Block block = RunLengthEncodedBlock.create(
-                                INTEGER,
-                                defaultConstantVector.getInt(0),
-                                defaultConstantVector.getSize());
-                        newPage = page.appendColumn(block);
-                    }
-                    default -> throw new UnsupportedOperationException("Unsupported data type: " + dataType);
-                }
+        checkArgument(i >= 0 && i <= schema.length(), "Invalid ordinal: %s", i);
+        checkArgument(columnVector instanceof TrinoColumnVectorWrapper, "Unsupported column vector: %s", columnVector.getClass());
 
-                ArrayList<StructField> newStructFields = new ArrayList<>(schema.fields());
-                newStructFields.ensureCapacity(schema.length() + 1);
-                newStructFields.add(i, structField);
-                StructType newSchema = new StructType(newStructFields);
+        ArrayList<StructField> newStructFields = new ArrayList<>(schema.fields());
+        newStructFields.ensureCapacity(schema.length() + 1);
+        newStructFields.add(i, structField);
+        StructType newSchema = new StructType(newStructFields);
 
-                return new TrinoColumnarBatchWrapper(newSchema, newPage);
-            }
-            default -> throw new UnsupportedOperationException("Unsupported column vector: " + columnVector);
-        }
+        return new TrinoColumnarBatchWrapper(
+                newSchema,
+                page.insertColumnAt(i, ((TrinoColumnVectorWrapper) columnVector).getTrinoBlock()));
     }
 
     @Override
@@ -114,18 +82,17 @@ public class TrinoColumnarBatchWrapper
     @Override
     public ColumnarBatch withDeletedColumnAt(int ordinal)
     {
-        return this;
+        ArrayList<StructField> newStructFields = new ArrayList<>(schema.fields());
+        newStructFields.remove(ordinal);
+        StructType newSchema = new StructType(newStructFields);
+
+        return new TrinoColumnarBatchWrapper(newSchema, page.deleteColumnAt(ordinal));
     }
 
     @Override
     public ColumnVector getColumnVector(int ordinal)
     {
         Block block = page.getBlock(ordinal);
-        return convertTrinoBlockToDeltaColumnVector(schema.at(ordinal).getDataType(), block);
-    }
-
-    private ColumnVector convertTrinoBlockToDeltaColumnVector(DataType deltaType, Block block)
-    {
-        return new TrinoColumnVectorWrapper(deltaType, block);
+        return new TrinoColumnVectorWrapper(schema.at(ordinal).getDataType(), block);
     }
 }

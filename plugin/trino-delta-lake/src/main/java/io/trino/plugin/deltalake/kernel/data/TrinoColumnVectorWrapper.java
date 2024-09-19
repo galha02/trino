@@ -13,11 +13,25 @@
  */
 package io.trino.plugin.deltalake.kernel.data;
 
+import io.delta.kernel.data.ArrayValue;
+import io.delta.kernel.data.ColumnVector;
+import io.delta.kernel.data.MapValue;
+import io.delta.kernel.types.ArrayType;
 import io.delta.kernel.types.DataType;
+import io.delta.kernel.types.MapType;
+import io.delta.kernel.types.StructType;
+import io.trino.spi.block.ArrayBlock;
 import io.trino.spi.block.Block;
 import io.trino.spi.block.ByteArrayBlock;
+import io.trino.spi.block.ColumnarArray;
+import io.trino.spi.block.ColumnarMap;
 import io.trino.spi.block.IntArrayBlock;
 import io.trino.spi.block.LongArrayBlock;
+import io.trino.spi.block.MapBlock;
+import io.trino.spi.block.RowBlock;
+import io.trino.spi.block.VariableWidthBlock;
+
+import java.math.BigDecimal;
 
 import static java.util.Objects.requireNonNull;
 
@@ -85,5 +99,100 @@ public class TrinoColumnVectorWrapper
     public int getInt(int rowId)
     {
         return ((IntArrayBlock) trinoBlock).getInt(rowId);
+    }
+
+    @Override
+    public float getFloat(int rowId)
+    {
+        return Float.intBitsToFloat(((IntArrayBlock) trinoBlock).getInt(rowId));
+    }
+
+    @Override
+    public double getDouble(int rowId)
+    {
+        return Double.longBitsToDouble(((LongArrayBlock) trinoBlock).getLong(rowId));
+    }
+
+    @Override
+    public byte[] getBinary(int rowId)
+    {
+        VariableWidthBlock block = (VariableWidthBlock) trinoBlock;
+        return block.getSlice(rowId).getBytes();
+    }
+
+    @Override
+    public String getString(int rowId)
+    {
+        VariableWidthBlock block = (VariableWidthBlock) trinoBlock;
+        return block.getSlice(rowId).toStringUtf8();
+    }
+
+    @Override
+    public BigDecimal getDecimal(int rowId)
+    {
+        throw new UnsupportedOperationException("Not implemented yet");
+    }
+
+    @Override
+    public MapValue getMap(int rowId)
+    {
+        MapBlock mapBlock = (MapBlock) trinoBlock;
+        ColumnarMap columnarMap = ColumnarMap.toColumnarMap(mapBlock.getSingleValueBlock(rowId));
+        DataType keyType = ((MapType) deltaType).getKeyType();
+        DataType valueType = ((MapType) deltaType).getValueType();
+
+        return new MapValue()
+        {
+            @Override
+            public int getSize()
+            {
+                return columnarMap.getPositionCount();
+            }
+
+            @Override
+            public ColumnVector getKeys()
+            {
+                return new TrinoColumnVectorWrapper(keyType, columnarMap.getKeysBlock());
+            }
+
+            @Override
+            public ColumnVector getValues()
+            {
+                return new TrinoColumnVectorWrapper(valueType, columnarMap.getValuesBlock());
+            }
+        };
+    }
+
+    @Override
+    public ArrayValue getArray(int rowId)
+    {
+        ArrayBlock arrayBlock = (ArrayBlock) trinoBlock;
+        ColumnarArray columnarArray = ColumnarArray.toColumnarArray(arrayBlock.getSingleValueBlock(rowId));
+        DataType elementType = ((ArrayType) deltaType).getElementType();
+
+        return new ArrayValue()
+        {
+            @Override
+            public int getSize()
+            {
+                return columnarArray.getPositionCount();
+            }
+
+            @Override
+            public ColumnVector getElements()
+            {
+                return new TrinoColumnVectorWrapper(elementType, columnarArray.getElementsBlock());
+            }
+        };
+    }
+
+    @Override
+    public ColumnVector getChild(int ordinal)
+    {
+        RowBlock rowBlock = (RowBlock) trinoBlock;
+        StructType structType = (StructType) deltaType;
+        return new TrinoColumnVectorWrapper(
+                structType.at(ordinal).getDataType(),
+                rowBlock.getFieldBlock(ordinal));
     }
 }

@@ -42,13 +42,13 @@ public class TrinoEngine
     @Override
     public JsonHandler getJsonHandler()
     {
-        return new TrinoJsonHandler();
+        return new TrinoJsonHandler(fileSystem, typeManager);
     }
 
     @Override
     public FileSystemClient getFileSystemClient()
     {
-        return new TrinoFileSystemClient();
+        return new TrinoFileSystemClient(fileSystem);
     }
 
     @Override
