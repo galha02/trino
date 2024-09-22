@@ -89,6 +89,7 @@ public class DeltaLakeConfig
     private boolean projectionPushdownEnabled = true;
     private boolean queryPartitionFilterRequired;
     private boolean deletionVectorsEnabled;
+    private boolean deltaKernelEnabled;
 
     public Duration getMetadataCacheTtl()
     {
@@ -261,6 +262,18 @@ public class DeltaLakeConfig
     public DeltaLakeConfig setCheckpointFilteringEnabled(boolean checkpointFilteringEnabled)
     {
         this.checkpointFilteringEnabled = checkpointFilteringEnabled;
+        return this;
+    }
+
+    public boolean isDeltaKernelEnabled()
+    {
+        return deltaKernelEnabled;
+    }
+
+    @Config("delta.kernel.enabled")
+    public DeltaLakeConfig setDeltaKernelEnabled(boolean deltaKernelEnabled)
+    {
+        this.deltaKernelEnabled = deltaKernelEnabled;
         return this;
     }
 
