@@ -373,7 +373,8 @@ public class CheckpointEntryIterator
                         ImmutableList.of(0), // hiveColumnIndex; we provide fake value because we always find columns by name
                         ImmutableList.of(field),
                         toHiveType(type),
-                        type)),
+                        type,
+                        ImmutableList.of())),
                 ColumnType.REGULAR,
                 column.getComment());
 
@@ -397,7 +398,8 @@ public class CheckpointEntryIterator
                         ImmutableList.of(0, 0), // hiveColumnIndex; we provide fake value because we always find columns by name
                         ImmutableList.of("partitionvalues_parsed", partitionColumn.columnName()),
                         DeltaHiveTypeTranslator.toHiveType(partitionColumn.type()),
-                        partitionColumn.type())),
+                        partitionColumn.type(),
+                        ImmutableList.of())),
                 HiveColumnHandle.ColumnType.REGULAR,
                 addColumn.getComment());
     }

@@ -496,7 +496,8 @@ public class HivePageSourceProvider
                                     projectedColumn.getDereferenceIndices(),
                                     projectedColumn.getDereferenceNames(),
                                     fromHiveType,
-                                    createTypeFromCoercer(typeManager, fromHiveType, columnHandle.getHiveType(), coercionContext));
+                                    createTypeFromCoercer(typeManager, fromHiveType, columnHandle.getHiveType(), coercionContext),
+                                    projectedColumn.getSubfields());
                         });
 
                         return new HiveColumnHandle(
