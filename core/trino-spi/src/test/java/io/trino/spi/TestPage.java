@@ -54,7 +54,7 @@ public class TestPage
     {
         assertThatThrownBy(() -> new Page(0).getRegion(1, 1))
                 .isInstanceOf(IndexOutOfBoundsException.class)
-                .hasMessage("Invalid position 1 and length 1 in page with 0 positions");
+                .hasMessage("Invalid position 1 and length 1 in block with 0 positions");
     }
 
     @Test
@@ -102,19 +102,19 @@ public class TestPage
         page.compact();
 
         // dictionary blocks should all be compact
-        assertThat(((DictionaryBlock) page.getBlock(0)).isCompact()).isTrue();
-        assertThat(((DictionaryBlock) page.getBlock(1)).isCompact()).isTrue();
-        assertThat(((DictionaryBlock) page.getBlock(2)).isCompact()).isTrue();
-        assertThat(((DictionaryBlock) page.getBlock(0)).getDictionary().getPositionCount()).isEqualTo(commonDictionaryUsedPositions);
-        assertThat(((DictionaryBlock) page.getBlock(1)).getDictionary().getPositionCount()).isEqualTo(otherDictionaryUsedPositions);
-        assertThat(((DictionaryBlock) page.getBlock(2)).getDictionary().getPositionCount()).isEqualTo(commonDictionaryUsedPositions);
+        assertThat(((DictionaryBlock) page.getFieldBlock(0)).isCompact()).isTrue();
+        assertThat(((DictionaryBlock) page.getFieldBlock(1)).isCompact()).isTrue();
+        assertThat(((DictionaryBlock) page.getFieldBlock(2)).isCompact()).isTrue();
+        assertThat(((DictionaryBlock) page.getFieldBlock(0)).getDictionary().getPositionCount()).isEqualTo(commonDictionaryUsedPositions);
+        assertThat(((DictionaryBlock) page.getFieldBlock(1)).getDictionary().getPositionCount()).isEqualTo(otherDictionaryUsedPositions);
+        assertThat(((DictionaryBlock) page.getFieldBlock(2)).getDictionary().getPositionCount()).isEqualTo(commonDictionaryUsedPositions);
 
         // Blocks that had the same source id before compacting page should have the same source id after compacting page
-        assertThat(((DictionaryBlock) page.getBlock(0)).getDictionarySourceId())
-                .isNotEqualTo(((DictionaryBlock) page.getBlock(1)).getDictionarySourceId());
+        assertThat(((DictionaryBlock) page.getFieldBlock(0)).getDictionarySourceId())
+                .isNotEqualTo(((DictionaryBlock) page.getFieldBlock(1)).getDictionarySourceId());
 
-        assertThat(((DictionaryBlock) page.getBlock(0)).getDictionarySourceId())
-                .isEqualTo(((DictionaryBlock) page.getBlock(2)).getDictionarySourceId());
+        assertThat(((DictionaryBlock) page.getFieldBlock(0)).getDictionarySourceId())
+                .isEqualTo(((DictionaryBlock) page.getFieldBlock(2)).getDictionarySourceId());
     }
 
     @Test
@@ -130,7 +130,7 @@ public class TestPage
         Page page = new Page(block, block, block).getPositions(new int[] {0, 1, 1, 1, 2, 5, 5}, 1, 5);
         assertThat(page.getPositionCount()).isEqualTo(5);
         for (int i = 0; i < 3; i++) {
-            Block testBlock = page.getBlock(i);
+            Block testBlock = page.getFieldBlock(i);
             assertThat(BIGINT.getLong(testBlock, 0)).isEqualTo(1);
             assertThat(BIGINT.getLong(testBlock, 1)).isEqualTo(1);
             assertThat(BIGINT.getLong(testBlock, 2)).isEqualTo(1);
@@ -153,11 +153,10 @@ public class TestPage
         Page page = new Page(lazyBlock);
         long lazyPageRetainedSize = Page.INSTANCE_SIZE + sizeOf(new Block[] {block}) + lazyBlock.getRetainedSizeInBytes();
         assertThat(page.getRetainedSizeInBytes()).isEqualTo(lazyPageRetainedSize);
-        Page loadedPage = page.getLoadedPage();
-        // Retained size of page remains the same
-        assertThat(page.getRetainedSizeInBytes()).isEqualTo(lazyPageRetainedSize);
+        Page loadedPage = page.getLoadedBlock();
+        // Retained size of original page and loaded page both change to the fully loaded size
         long loadedPageRetainedSize = Page.INSTANCE_SIZE + sizeOf(new Block[] {block}) + block.getRetainedSizeInBytes();
-        // Retained size of loaded page depends on the loaded block
+        assertThat(page.getRetainedSizeInBytes()).isEqualTo(loadedPageRetainedSize);
         assertThat(loadedPage.getRetainedSizeInBytes()).isEqualTo(loadedPageRetainedSize);
 
         lazyBlock = lazyWrapper(block);
