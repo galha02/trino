@@ -97,6 +97,7 @@ public class ElasticsearchServer
         container.start();
     }
 
+    @Override
     public void close()
             throws IOException
     {
