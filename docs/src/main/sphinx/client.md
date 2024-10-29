@@ -8,6 +8,15 @@ user interface directly. Clients like the [JDBC driver](/client/jdbc), provide a
 mechanism for other applications, including your own custom applications, to
 connect to Trino.
 
+
+protocol stuff
+
+```{toctree}
+:maxdepth: 1
+
+client/client-protocol
+```
+
 The following clients are available as part of every Trino release:
 
 ```{toctree}
@@ -25,3 +34,7 @@ The Trino project maintains the following other client libraries:
 
 In addition, other communities and vendors provide [numerous other client
 libraries, drivers, and applications](https://trino.io/ecosystem/client)
+
+Configure support for the [spooling protocol on the cluster](prop-protocol-spooling)
+and your client to improve performance for client interactions with higher data
+transfer demands.
