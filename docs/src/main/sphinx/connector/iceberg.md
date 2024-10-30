@@ -168,8 +168,8 @@ implementation is used:
 * - `iceberg.register-table-procedure.enabled`
   - Enable to allow user to call [`register_table` procedure](iceberg-register-table).
   - `false`
-* - `iceberg.add_files-procedure.enabled`
-  - Enable to allow user to call `add_files` procedure.
+* - `iceberg.add-files-procedure.enabled`
+  - Enable to allow user to call [`add_files` procedure](iceberg-add-files).
   - `false`
 * - `iceberg.query-partition-filter-required`
   - Set to `true` to force a query to use a partition filter for schemas
@@ -197,7 +197,28 @@ implementation is used:
   - Set to `false` to disable in-memory caching of metadata files on the 
     coordinator. This cache is not used when `fs.cache.enabled` is set to true.
   - `true`
-
+* - `iceberg.expire-snapshots.min-retention`
+  -  Minimal retention period for the
+     [`expire_snapshot` command](iceberg-expire-snapshots).
+     Equivalent session property is `expire_snapshots_min_retention`.
+  -  `7d` 
+* - `iceberg.remove-orphan-files.min-retention`
+  -  Minimal retention period for the 
+     [`remove_orphan_files` command](iceberg-remove-orphan-files).
+     Equivalent session property is `remove_orphan_files_min_retention`.
+  -  `7d`
+* - `iceberg.idle-writer-min-file-size`
+  -  Minimum data written by a single partition writer before it can
+     be considered as idle and can be closed by the engine. Equivalent
+     session property is `idle_writer_min_file_size`.
+  -  `16MB`
+* - `iceberg.sorted-writing-enabled`
+  -  Enable [sorted writing](iceberg-sorted-files) to tables with a specified sort order. Equivalent
+     session property is `sorted_writing_enabled`.
+  -  `true` 
+* - `iceberg.split-manager-threads`
+  -  Number of threads to use for generating splits.
+  -  Double the number of processors on the coordinator node.
 :::
 
 (iceberg-fte-support)=
@@ -568,11 +589,13 @@ nested directories, or `false` to ignore them.
 (iceberg-add-files)=
 #### Add files
 
-The connector can add files from tables or locations if
-`iceberg.add_files-procedure.enabled` is set to `true` for the catalog.
+The connector can add files from tables or locations to an existing table if
+`iceberg.add-files-procedure.enabled` is set to `true` for the catalog.
 
-Use the procedure `system.add_files_from_table` to add existing files from the Hive 
-table or `system.add_files` to add existing files from specified locations. 
+Use the procedure `system.add_files_from_table` to add existing files from a
+Hive table or `system.add_files` to add existing files from a specified location
+to an existing table.
+ 
 The data files must be the Parquet, ORC, or Avro file format.
 
 :::{warning}
@@ -584,17 +607,31 @@ relevant schema and table names supplied with the required parameters
 `schema_name` and `table_name`:
 
 ```sql
-ALTER TABLE testdb.iceberg_customer_orders EXECUTE add_files_from_table(
+ALTER TABLE testdb.iceberg_customer_orders 
+EXECUTE example.system.add_files_from_table(
     schema_name => 'testdb',
     table_name => 'hive_customer_orders')
 ```
 
-You need to provide a `partition_filter` argument to add files from specified partitions.
+Alternatively, you can set the current catalog and schema with a `USE`
+statement, and omit catalog and schema information, including the `system`
+schema for the procedure from any following `ALTER TABLE` statements:
+
+```sql
+USE example.testdb;
+ALTER TABLE iceberg_customer_orders 
+EXECUTE add_files_from_table(
+    schema_name => 'testdb',
+    table_name => 'hive_customer_orders')
+```
+
+Use a `partition_filter` argument to add files from specified partitions.
 The following example adds files from a partition where the `region` is `ASIA` and
 `country` is `JAPAN`:
 
 ```sql
-ALTER TABLE testdb.iceberg_customer_orders EXECUTE add_files_from_table(
+ALTER TABLE testdb.iceberg_customer_orders 
+EXECUTE example.system.add_files_from_table(
     schema_name => 'testdb',
     table_name => 'hive_customer_orders',
     partition_filter => map(ARRAY['region', 'country'], ARRAY['ASIA', 'JAPAN']))
@@ -604,7 +641,8 @@ In addition, you can provide a `recursive_directory` argument to migrate a
 Hive table that contains subdirectories:
 
 ```sql
-ALTER TABLE testdb.iceberg_customer_orders EXECUTE add_files_from_table(
+ALTER TABLE testdb.iceberg_customer_orders 
+EXECUTE example.system.add_files_from_table(
     schema_name => 'testdb',
     table_name => 'hive_customer_orders',
     recursive_directory => 'true')
@@ -614,12 +652,13 @@ The default value of `recursive_directory` is `fail`, which causes the procedure
 to throw an exception if subdirectories are found. Set the value to `true` to add 
 files from nested directories, or `false` to ignore them.
 
-`add_files` procedure supports adding files from a specified location.
+The `add_files` procedure supports adding files from a specified location.
 The procedure does not validate file schemas for compatibility with
 the target Iceberg table. The `location` property is supported for partitioned tables.
 
 ```sql
-ALTER TABLE testdb.iceberg_customer_orders EXECUTE add_files(
+ALTER TABLE testdb.iceberg_customer_orders 
+EXECUTE example.system.add_files(
     location => 's3://my-bucket/a/path',
     format => 'ORC')
 ```
@@ -689,6 +728,7 @@ EXECUTE <alter-table-execute>`.
 ```{include} optimize.fragment
 ```
 
+(iceberg-expire-snapshots)=
 ##### expire_snapshots
 
 The `expire_snapshots` command removes all snapshots and all related metadata
@@ -704,11 +744,12 @@ ALTER TABLE test_table EXECUTE expire_snapshots(retention_threshold => '7d')
 ```
 
 The value for `retention_threshold` must be higher than or equal to
-`iceberg.expire_snapshots.min-retention` in the catalog, otherwise the
+`iceberg.expire-snapshots.min-retention` in the catalog, otherwise the
 procedure fails with a similar message: `Retention specified (1.00d) is shorter
 than the minimum retention configured in the system (7.00d)`. The default value
 for this property is `7d`.
 
+(iceberg-remove-orphan-files)=
 ##### remove_orphan_files
 
 The `remove_orphan_files` command removes all files from a table's data
@@ -723,7 +764,7 @@ ALTER TABLE test_table EXECUTE remove_orphan_files(retention_threshold => '7d')
 ```
 
 The value for `retention_threshold` must be higher than or equal to
-`iceberg.remove_orphan_files.min-retention` in the catalog otherwise the
+`iceberg.remove-orphan-files.min-retention` in the catalog otherwise the
 procedure fails with a similar message: `Retention specified (1.00d) is shorter
 than the minimum retention configured in the system (7.00d)`. The default value
 for this property is `7d`.
@@ -1391,6 +1432,7 @@ CREATE TABLE example.testdb.customer_orders (
 WITH (partitioning = ARRAY['month(order_date)', 'bucket(account_number, 10)', 'country'])
 ```
 
+(iceberg-sorted-files)=
 #### Sorted tables
 
 The connector supports sorted files as a performance improvement. Data is sorted

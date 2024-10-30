@@ -13,6 +13,7 @@
  */
 package io.trino.plugin.iceberg;
 
+import com.google.common.base.Joiner;
 import com.google.common.base.Splitter;
 import com.google.common.base.Splitter.MapSplitter;
 import com.google.common.base.Suppliers;
@@ -240,6 +241,7 @@ import static io.trino.plugin.iceberg.IcebergColumnHandle.TRINO_MERGE_ROW_ID;
 import static io.trino.plugin.iceberg.IcebergColumnHandle.TRINO_ROW_ID_NAME;
 import static io.trino.plugin.iceberg.IcebergColumnHandle.fileModifiedTimeColumnHandle;
 import static io.trino.plugin.iceberg.IcebergColumnHandle.pathColumnHandle;
+import static io.trino.plugin.iceberg.IcebergErrorCode.ICEBERG_CATALOG_ERROR;
 import static io.trino.plugin.iceberg.IcebergErrorCode.ICEBERG_COMMIT_ERROR;
 import static io.trino.plugin.iceberg.IcebergErrorCode.ICEBERG_FILESYSTEM_ERROR;
 import static io.trino.plugin.iceberg.IcebergErrorCode.ICEBERG_INVALID_METADATA;
@@ -291,6 +293,7 @@ import static io.trino.plugin.iceberg.IcebergUtil.schemaFromMetadata;
 import static io.trino.plugin.iceberg.PartitionFields.parsePartitionFields;
 import static io.trino.plugin.iceberg.PartitionFields.toPartitionFields;
 import static io.trino.plugin.iceberg.SortFieldUtils.parseSortFields;
+import static io.trino.plugin.iceberg.TableStatisticsReader.readNdvs;
 import static io.trino.plugin.iceberg.TableStatisticsWriter.StatsUpdateMode.INCREMENTAL_UPDATE;
 import static io.trino.plugin.iceberg.TableStatisticsWriter.StatsUpdateMode.REPLACE;
 import static io.trino.plugin.iceberg.TableType.DATA;
@@ -346,6 +349,7 @@ import static org.apache.iceberg.ReachableFileUtil.statisticsFilesLocations;
 import static org.apache.iceberg.SnapshotSummary.DELETED_RECORDS_PROP;
 import static org.apache.iceberg.SnapshotSummary.REMOVED_EQ_DELETES_PROP;
 import static org.apache.iceberg.SnapshotSummary.REMOVED_POS_DELETES_PROP;
+import static org.apache.iceberg.SnapshotSummary.TOTAL_RECORDS_PROP;
 import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL_DEFAULT;
 import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
@@ -914,6 +918,13 @@ public class IcebergMetadata
     public void dropSchema(ConnectorSession session, String schemaName, boolean cascade)
     {
         if (cascade) {
+            List<String> nestedNamespaces = getChildNamespaces(session, schemaName);
+            if (!nestedNamespaces.isEmpty()) {
+                throw new TrinoException(
+                        ICEBERG_CATALOG_ERROR,
+                        format("Cannot drop non-empty schema: %s, contains %s nested schema(s)", schemaName, Joiner.on(", ").join(nestedNamespaces)));
+            }
+
             for (SchemaTableName materializedView : listMaterializedViews(session, Optional.of(schemaName))) {
                 dropMaterializedView(session, materializedView);
             }
@@ -1165,6 +1176,19 @@ public class IcebergMetadata
         beginTransaction(icebergTable);
 
         return newWritableTableHandle(table.getSchemaTableName(), icebergTable, retryMode);
+    }
+
+    private List<String> getChildNamespaces(ConnectorSession session, String parentNamespace)
+    {
+        Optional<String> namespaceSeparator = catalog.getNamespaceSeparator();
+
+        if (namespaceSeparator.isEmpty()) {
+            return ImmutableList.of();
+        }
+
+        return catalog.listNamespaces(session).stream()
+                .filter(namespace -> namespace.startsWith(parentNamespace + namespaceSeparator.get()))
+                .collect(toImmutableList());
     }
 
     private IcebergWritableTableHandle newWritableTableHandle(SchemaTableName name, Table table, RetryMode retryMode)
@@ -1521,8 +1545,11 @@ public class IcebergMetadata
         Table icebergTable = catalog.loadTable(session, tableHandle.getSchemaTableName());
 
         checkProcedureArgument(
-                icebergTable.schemas().size() == sourceTable.getDataColumns().size(),
-                "Data column count mismatch: %d vs %d", icebergTable.schemas().size(), sourceTable.getDataColumns().size());
+                icebergTable.schemas().size() >= sourceTable.getDataColumns().size(),
+                "Target table should have at least %d columns but got %d", sourceTable.getDataColumns().size(), icebergTable.schemas().size());
+        checkProcedureArgument(
+                icebergTable.spec().fields().size() == sourceTable.getPartitionColumns().size(),
+                "Numbers of partition columns should be equivalent. target: %d, source: %d", icebergTable.spec().fields().size(), sourceTable.getPartitionColumns().size());
 
         // TODO Add files from all partitions when partition filter is not provided
         checkProcedureArgument(
@@ -1543,12 +1570,17 @@ public class IcebergMetadata
             throw new TrinoException(NOT_SUPPORTED, "Partition filter is not supported for non-partitioned tables");
         }
 
+        Set<String> missingDataColumns = new HashSet<>();
         Stream.of(sourceTable.getDataColumns(), sourceTable.getPartitionColumns())
                 .flatMap(List::stream)
                 .forEach(sourceColumn -> {
                     Types.NestedField targetColumn = icebergTable.schema().caseInsensitiveFindField(sourceColumn.getName());
                     if (targetColumn == null) {
-                        throw new TrinoException(COLUMN_NOT_FOUND, "Column '%s' does not exist".formatted(sourceColumn.getName()));
+                        if (sourceTable.getPartitionColumns().contains(sourceColumn)) {
+                            throw new TrinoException(COLUMN_NOT_FOUND, "Partition column '%s' does not exist".formatted(sourceColumn.getName()));
+                        }
+                        missingDataColumns.add(sourceColumn.getName());
+                        return;
                     }
                     ColumnIdentity columnIdentity = createColumnIdentity(targetColumn);
                     org.apache.iceberg.types.Type sourceColumnType = toIcebergType(typeManager.getType(getTypeSignature(sourceColumn.getType(), DEFAULT_PRECISION)), columnIdentity);
@@ -1556,6 +1588,9 @@ public class IcebergMetadata
                         throw new TrinoException(TYPE_MISMATCH, "Target '%s' column is '%s' type, but got source '%s' type".formatted(targetColumn.name(), targetColumn.type(), sourceColumnType));
                     }
                 });
+        if (missingDataColumns.size() == sourceTable.getDataColumns().size()) {
+            throw new TrinoException(COLUMN_NOT_FOUND, "All columns in the source table do not exist in the target table");
+        }
 
         return Optional.of(new IcebergTableExecuteHandle(
                 tableHandle.getSchemaTableName(),
@@ -2450,21 +2485,34 @@ public class IcebergMetadata
 
         ConnectorTableHandle tableHandle = getTableHandle(session, tableMetadata.getTable(), Optional.empty(), Optional.empty());
         if (tableHandle == null) {
-            // Assume new table (CTAS), collect all stats possible
+            // Assume new table (CTAS), collect NDV stats on all columns
             return getStatisticsCollectionMetadata(tableMetadata, Optional.empty(), availableColumnNames -> {});
         }
         IcebergTableHandle table = checkValidTableHandle(tableHandle);
-        Schema schema = SchemaParser.fromJson(table.getTableSchemaJson());
-        TableStatistics tableStatistics = getTableStatistics(
-                session,
-                table.withProjectedColumns(ImmutableSet.copyOf(getTopLevelColumns(schema, typeManager))));
-        if (tableStatistics.getRowCount().getValue() == 0.0) {
-            // Table has no data (empty, or wiped out). Collect all stats possible
+        if (table.getSnapshotId().isEmpty()) {
+            // Table has no data (empty, or wiped out). Collect NDV stats on all columns
             return getStatisticsCollectionMetadata(tableMetadata, Optional.empty(), availableColumnNames -> {});
         }
-        Set<String> columnsWithExtendedStatistics = tableStatistics.getColumnStatistics().entrySet().stream()
-                .filter(entry -> !entry.getValue().getDistinctValuesCount().isUnknown())
-                .map(entry -> ((IcebergColumnHandle) entry.getKey()).getName())
+
+        Table icebergTable = catalog.loadTable(session, table.getSchemaTableName());
+        long snapshotId = table.getSnapshotId().orElseThrow();
+        Snapshot snapshot = icebergTable.snapshot(snapshotId);
+        String totalRecords = snapshot.summary().get(TOTAL_RECORDS_PROP);
+        if (totalRecords != null && Long.parseLong(totalRecords) == 0) {
+            // Table has no data (empty, or wiped out). Collect NDV stats on all columns
+            return getStatisticsCollectionMetadata(tableMetadata, Optional.empty(), availableColumnNames -> {});
+        }
+
+        Schema schema = SchemaParser.fromJson(table.getTableSchemaJson());
+        List<IcebergColumnHandle> columns = getTopLevelColumns(schema, typeManager);
+        Set<Integer> columnIds = columns.stream()
+                .map(IcebergColumnHandle::getId)
+                .collect(toImmutableSet());
+        Map<Integer, Long> ndvs = readNdvs(icebergTable, snapshotId, columnIds, true);
+        // Avoid collecting NDV stats on columns where we don't know the existing NDV count
+        Set<String> columnsWithExtendedStatistics = columns.stream()
+                .filter(column -> ndvs.containsKey(column.getId()))
+                .map(IcebergColumnHandle::getName)
                 .collect(toImmutableSet());
         return getStatisticsCollectionMetadata(tableMetadata, Optional.of(columnsWithExtendedStatistics), availableColumnNames -> {});
     }

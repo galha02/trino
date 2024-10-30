@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import io.airlift.units.DataSize;
 import io.airlift.units.Duration;
 import io.trino.Session;
@@ -5377,7 +5378,7 @@ public abstract class BaseIcebergConnectorTest
             List<String> updatedFiles = getActiveFiles(tableName);
             // as we force repartitioning there should be only 3 partitions
             assertThat(updatedFiles).hasSize(3);
-            assertThat(getAllDataFilesFromTableDirectory(tableName)).containsExactlyInAnyOrderElementsOf(concat(initialFiles, updatedFiles));
+            assertThat(getAllDataFilesFromTableDirectory(tableName)).containsExactlyInAnyOrderElementsOf(ImmutableSet.copyOf(concat(initialFiles, updatedFiles)));
 
             assertUpdate("DROP TABLE " + tableName);
         }
@@ -5522,11 +5523,13 @@ public abstract class BaseIcebergConnectorTest
 
         assertQuery(
                 "SELECT summary['total-delete-files'] FROM \"" + tableName + "$snapshots\" WHERE snapshot_id = " + getCurrentSnapshotId(tableName),
-                "VALUES '1'");
+                "VALUES '0'");
         List<String> allDataFilesAfterOptimizeWithWhere = getAllDataFilesFromTableDirectory(tableName);
         assertThat(allDataFilesAfterOptimizeWithWhere)
-                .hasSize(6)
+                .hasSize(5)
                 .doesNotContain(allDataFilesInitially.stream().filter(file -> file.contains("regionkey=3"))
+                        .toArray(String[]::new))
+                .contains(allDataFilesInitially.stream().filter(file -> !file.contains("regionkey=3"))
                         .toArray(String[]::new));
 
         assertThat(query("SELECT * FROM " + tableName))
@@ -5543,7 +5546,8 @@ public abstract class BaseIcebergConnectorTest
         List<String> allDataFilesAfterFullOptimize = getAllDataFilesFromTableDirectory(tableName);
         assertThat(allDataFilesAfterFullOptimize)
                 .hasSize(5)
-                .doesNotContain(allDataFilesInitially.toArray(new String[0]));
+                // All files skipped from OPTIMIZE as they have no deletes and there's only one file per partition
+                .contains(allDataFilesAfterOptimizeWithWhere.toArray(new String[0]));
 
         assertThat(query("SELECT * FROM " + tableName))
                 .matches("SELECT * FROM nation WHERE nationkey != 7");
@@ -5574,6 +5578,65 @@ public abstract class BaseIcebergConnectorTest
                 .failure().hasMessage("This connector does not support table procedures");
         assertThat(query("ALTER TABLE \"nation$snapshots\" EXECUTE OPTIMIZE"))
                 .failure().hasMessage("This connector does not support table procedures");
+    }
+
+    @Test
+    void testOptimizeOnlyOneFileShouldHaveNoEffect()
+    {
+        String tableName = "test_optimize_one_file_" + randomNameSuffix();
+        assertUpdate("CREATE TABLE " + tableName + " (a integer)");
+        assertUpdate("INSERT INTO " + tableName + " VALUES 1, 2", 2);
+
+        List<String> initialFiles = getActiveFiles(tableName);
+        assertThat(initialFiles).hasSize(1);
+
+        computeActual("ALTER TABLE " + tableName + " EXECUTE OPTIMIZE");
+        assertThat(query("SELECT a FROM " + tableName))
+                .matches("VALUES 1, 2");
+        assertThat(getActiveFiles(tableName))
+                .containsExactlyInAnyOrderElementsOf(initialFiles);
+
+        assertUpdate("DELETE FROM " + tableName + " WHERE a = 1", 1);
+        // Calling optimize after adding a DELETE should result in compaction
+        computeActual("ALTER TABLE " + tableName + " EXECUTE OPTIMIZE");
+        assertThat(query("SELECT a FROM " + tableName))
+                .matches("VALUES 2");
+        assertThat(getActiveFiles(tableName))
+                .hasSize(1)
+                .doesNotContainAnyElementsOf(initialFiles);
+
+        assertUpdate("DROP TABLE " + tableName);
+    }
+
+    @Test
+    void testOptimizeAfterChangeInPartitioning()
+    {
+        String tableName = "test_optimize_after_change_in_partitioning_" + randomNameSuffix();
+        assertUpdate("CREATE TABLE " + tableName + " WITH (partitioning = ARRAY['bucket(nationkey, 5)']) AS SELECT * FROM tpch.tiny.supplier", 100);
+        List<String> initialFiles = getActiveFiles(tableName);
+        assertThat(initialFiles).hasSize(5);
+
+        // OPTIMIZE shouldn't have to rewrite files
+        computeActual("ALTER TABLE " + tableName + " EXECUTE OPTIMIZE");
+        assertThat(query("SELECT COUNT(*) FROM " + tableName)).matches("VALUES BIGINT '100'");
+        assertThat(getActiveFiles(tableName))
+                .containsExactlyInAnyOrderElementsOf(initialFiles);
+
+        // Change in partitioning should result in OPTIMIZE rewriting all files
+        assertUpdate("ALTER TABLE " + tableName + " SET PROPERTIES partitioning = ARRAY['nationkey']");
+        computeActual("ALTER TABLE " + tableName + " EXECUTE OPTIMIZE");
+        assertThat(query("SELECT COUNT(*) FROM " + tableName)).matches("VALUES BIGINT '100'");
+        List<String> filesAfterPartioningChange = getActiveFiles(tableName);
+        assertThat(filesAfterPartioningChange)
+                .hasSize(25)
+                .doesNotContainAnyElementsOf(initialFiles);
+
+        // OPTIMIZE shouldn't have to rewrite files anymore
+        computeActual("ALTER TABLE " + tableName + " EXECUTE OPTIMIZE");
+        assertThat(query("SELECT COUNT(*) FROM " + tableName)).matches("VALUES BIGINT '100'");
+        assertThat(getActiveFiles(tableName))
+                .hasSize(25)
+                .containsExactlyInAnyOrderElementsOf(filesAfterPartioningChange);
     }
 
     private List<String> getActiveFiles(String tableName)
@@ -6216,7 +6279,7 @@ public abstract class BaseIcebergConnectorTest
                 "\\Qline 1:46: Unable to set catalog 'iceberg' table procedure 'EXPIRE_SNAPSHOTS' property 'retention_threshold' to ['33mb']: Unknown time unit: mb");
         assertQueryFails(
                 "ALTER TABLE nation EXECUTE EXPIRE_SNAPSHOTS (retention_threshold => '33s')",
-                "\\QRetention specified (33.00s) is shorter than the minimum retention configured in the system (7.00d). Minimum retention can be changed with iceberg.expire_snapshots.min-retention configuration property or iceberg.expire_snapshots_min_retention session property");
+                "\\QRetention specified (33.00s) is shorter than the minimum retention configured in the system (7.00d). Minimum retention can be changed with iceberg.expire-snapshots.min-retention configuration property or iceberg.expire_snapshots_min_retention session property");
     }
 
     @Test
@@ -6354,7 +6417,7 @@ public abstract class BaseIcebergConnectorTest
                 "\\Qline 1:49: Unable to set catalog 'iceberg' table procedure 'REMOVE_ORPHAN_FILES' property 'retention_threshold' to ['33mb']: Unknown time unit: mb");
         assertQueryFails(
                 "ALTER TABLE nation EXECUTE REMOVE_ORPHAN_FILES (retention_threshold => '33s')",
-                "\\QRetention specified (33.00s) is shorter than the minimum retention configured in the system (7.00d). Minimum retention can be changed with iceberg.remove_orphan_files.min-retention configuration property or iceberg.remove_orphan_files_min_retention session property");
+                "\\QRetention specified (33.00s) is shorter than the minimum retention configured in the system (7.00d). Minimum retention can be changed with iceberg.remove-orphan-files.min-retention configuration property or iceberg.remove_orphan_files_min_retention session property");
     }
 
     @Test

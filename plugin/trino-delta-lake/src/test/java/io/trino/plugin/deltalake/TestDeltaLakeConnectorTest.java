@@ -81,6 +81,7 @@ import static io.trino.spi.type.VarcharType.VARCHAR;
 import static io.trino.sql.planner.optimizations.PlanNodeSearcher.searchFrom;
 import static io.trino.testing.MaterializedResult.resultBuilder;
 import static io.trino.testing.QueryAssertions.copyTpchTables;
+import static io.trino.testing.TestingAccessControlManager.TestingPrivilegeType.CREATE_TABLE;
 import static io.trino.testing.TestingAccessControlManager.TestingPrivilegeType.EXECUTE_FUNCTION;
 import static io.trino.testing.TestingAccessControlManager.TestingPrivilegeType.SELECT_COLUMN;
 import static io.trino.testing.TestingAccessControlManager.privilege;
@@ -1353,22 +1354,27 @@ public class TestDeltaLakeConnectorTest
     }
 
     @Test
-    public void testUnsupportedChangeDataFeedAndDeletionVector()
+    public void testChangeDataFeedWithDeletionVectors()
     {
-        // TODO https://github.com/trinodb/trino/issues/23620 Fix incorrect CDF entry when deletion vector is enabled
         try (TestTable table = new TestTable(
                 getQueryRunner()::execute,
-                "test_cdf_dv",
-                "(x int) WITH (change_data_feed_enabled = true, deletion_vectors_enabled = true)")) {
-            assertQueryFails("INSERT INTO " + table.getName() + " VALUES 1", "Writing to tables with both change data feed and deletion vectors enabled is not supported");
-            assertQueryFails("UPDATE " + table.getName() + " SET x = 1", "Writing to tables with both change data feed and deletion vectors enabled is not supported");
-            assertQueryFails("DELETE FROM " + table.getName(), "Writing to tables with both change data feed and deletion vectors enabled is not supported");
-            assertQueryFails("MERGE INTO " + table.getName() + " USING (VALUES 42) t(dummy) ON false WHEN NOT MATCHED THEN INSERT VALUES (1)", "Writing to tables with both change data feed and deletion vectors enabled is not supported");
-            assertQueryFails("TRUNCATE TABLE " + table.getName(), "Writing to tables with both change data feed and deletion vectors enabled is not supported");
-            assertQueryFails("ALTER TABLE " + table.getName() + " EXECUTE optimize", "Writing to tables with both change data feed and deletion vectors enabled is not supported");
+                "test_cdf",
+                "(x VARCHAR, y INT) WITH (change_data_feed_enabled = true, deletion_vectors_enabled = true)")) {
+            assertUpdate("INSERT INTO " + table.getName() + " VALUES('test1', 1)", 1);
+            assertUpdate("INSERT INTO " + table.getName() + " VALUES('test2', 2)", 1);
+            assertUpdate("UPDATE " + table.getName() + " SET y = 20 WHERE x = 'test2'", 1);
 
-            // TODO https://github.com/trinodb/trino/issues/22809 Add support for vacuuming tables with deletion vectors
-            assertQueryFails("CALL system.vacuum(current_schema, '" + table.getName() + "', '7d')", "Cannot execute vacuum procedure with deletionVectors writer features");
+            assertThat(query("SELECT * FROM " + table.getName()))
+                    .skippingTypesCheck()
+                    .matches("VALUES ('test1', 1), ('test2', 20)");
+            assertTableChangesQuery("SELECT * FROM TABLE(system.table_changes(CURRENT_SCHEMA, '" + table.getName() + "'))",
+                    """
+                            VALUES
+                                ('test1', 1, 'insert', BIGINT '1'),
+                                ('test2', 2, 'insert', BIGINT '2'),
+                                ('test2', 2, 'update_preimage', BIGINT '3'),
+                                ('test2', 20, 'update_postimage', BIGINT '3')
+                            """);
         }
     }
 
@@ -4818,6 +4824,20 @@ public class TestDeltaLakeConnectorTest
 
             assertQueryFails("ALTER TABLE " + table.getName() + " ALTER COLUMN col SET DATA TYPE row(x int, \"X\" int)", "This connector does not support setting column types");
         }
+    }
+
+    @Test
+    void testRegisterTableAccessControl()
+    {
+        String tableName = "test_register_table_access_control_" + randomNameSuffix();
+        assertUpdate("CREATE TABLE " + tableName + " AS SELECT 1 a", 1);
+        String tableLocation = metastore.getTable(SCHEMA, tableName).orElseThrow().getStorage().getLocation();
+        metastore.dropTable(SCHEMA, tableName, false);
+
+        assertAccessDenied(
+                "CALL system.register_table(CURRENT_SCHEMA, '" + tableName + "', '" + tableLocation + "')",
+                "Cannot create table .*",
+                privilege(tableName, CREATE_TABLE));
     }
 
     @Test
