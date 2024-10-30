@@ -35,15 +35,18 @@ final class TestFakerQueries
         assertUpdate("CREATE TABLE faker.default.test (id INTEGER, name VARCHAR)");
         assertTableColumnNames("faker.default.test", "id", "name");
     }
-    
+
     @Test
     void testRenameTable()
     {
         assertUpdate("CREATE TABLE faker.default.original_table (id INTEGER, name VARCHAR)");
         assertUpdate("ALTER TABLE faker.default.original_table RENAME TO renamed_table");
-        assertQuery("SELECT table_name FROM information_schema.tables WHERE table_catalog = 'faker' AND table_schema = 'default' AND table_name = 'renamed_table'", "VALUES 'renamed_table'");
+        @Language("SQL")
+        String testQuery = "SELECT table_name FROM information_schema.tables " + "WHERE table_catalog = 'faker' AND table_schema = 'default' " + "AND table_name = 'renamed_table'";
+        assertQuery(testQuery, "VALUES 'renamed_table'");
         assertUpdate("DROP TABLE faker.default.renamed_table");
     }
+
 
     @Test
     void testSelectFromTable()
