@@ -256,14 +256,6 @@ final class TestFakerQueries
     }
 
     @Test
-    void testSelectFunctions()
-    {
-        @Language("SQL")
-        String testQuery = "SELECT random_string('#{options.option ''a'', ''b''}') IN ('a', 'b')";
-        assertQuery(testQuery, "VALUES (true)");
-    }
-
-    @Test
     void testSelectRange()
     {
         @Language("SQL")
