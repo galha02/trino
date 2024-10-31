@@ -35,6 +35,7 @@ final class TestFakerQueries
         assertUpdate("CREATE TABLE faker.default.test (id INTEGER, name VARCHAR)");
         assertTableColumnNames("faker.default.test", "id", "name");
     }
+    
     @Test
     void testRenameTable()
     {
