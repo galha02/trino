@@ -34,16 +34,15 @@ final class TestFakerQueries
         assertQuery("SHOW SCHEMAS FROM faker", "VALUES 'default', 'information_schema'");
         assertUpdate("CREATE TABLE faker.default.test (id INTEGER, name VARCHAR)");
         assertTableColumnNames("faker.default.test", "id", "name");
-        assertUpdate("DROP TABLE faker.default.test");
     }
 
     @Test
     void testRenameTable()
     {
         assertUpdate("CREATE TABLE faker.default.original_table (id INTEGER, name VARCHAR)");
-        assertQuery("SHOW TABLES FROM faker.default", "VALUES 'original_table'");
+        assertQuery("SHOW TABLES FROM faker.default LIKE 'original_table'", "VALUES 'original_table'");
         assertUpdate("ALTER TABLE faker.default.original_table RENAME TO renamed_table");
-        assertQuery("SHOW TABLES FROM faker.default", "VALUES 'renamed_table'");
+        assertQuery("SHOW TABLES FROM faker.default LIKE 'renamed_table'", "VALUES 'renamed_table'");
     }
 
     @Test
@@ -253,6 +252,14 @@ final class TestFakerQueries
         assertQuery(testQuery, "VALUES (1000)");
 
         assertUpdate("DROP TABLE faker.default.generators");
+    }
+
+    @Test
+    void testSelectFunctions()
+    {
+        @Language("SQL")
+        String testQuery = "SELECT random_string('#{options.option ''a'', ''b''}') IN ('a', 'b')";
+        assertQuery(testQuery, "VALUES (true)");
     }
 
     @Test
