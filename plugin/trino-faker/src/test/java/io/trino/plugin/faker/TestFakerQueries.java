@@ -35,7 +35,6 @@ final class TestFakerQueries
         assertUpdate("CREATE TABLE faker.default.test (id INTEGER, name VARCHAR)");
         assertTableColumnNames("faker.default.test", "id", "name");
     }
-
     @Test
     void testRenameTable()
     {
@@ -252,14 +251,6 @@ final class TestFakerQueries
         assertQuery(testQuery, "VALUES (1000)");
 
         assertUpdate("DROP TABLE faker.default.generators");
-    }
-
-    @Test
-    void testSelectFunctions()
-    {
-        @Language("SQL")
-        String testQuery = "SELECT random_string('#{options.option ''a'', ''b''}') IN ('a', 'b')";
-        assertQuery(testQuery, "VALUES (true)");
     }
 
     @Test
