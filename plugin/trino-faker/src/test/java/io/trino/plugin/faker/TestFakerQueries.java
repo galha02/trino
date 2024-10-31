@@ -34,19 +34,17 @@ final class TestFakerQueries
         assertQuery("SHOW SCHEMAS FROM faker", "VALUES 'default', 'information_schema'");
         assertUpdate("CREATE TABLE faker.default.test (id INTEGER, name VARCHAR)");
         assertTableColumnNames("faker.default.test", "id", "name");
+        assertUpdate("DROP TABLE faker.default.test");
     }
 
     @Test
     void testRenameTable()
     {
         assertUpdate("CREATE TABLE faker.default.original_table (id INTEGER, name VARCHAR)");
+        assertQuery("SHOW TABLES FROM faker.default", "VALUES 'original_table'");
         assertUpdate("ALTER TABLE faker.default.original_table RENAME TO renamed_table");
-        @Language("SQL")
-        String testQuery = "SELECT table_name FROM information_schema.tables WHERE table_schema = 'faker' AND table_name = 'renamed_table'";
-        assertQuery(testQuery, "VALUES 'renamed_table'");
-        assertUpdate("DROP TABLE faker.default.renamed_table");
+        assertQuery("SHOW TABLES FROM faker.default", "VALUES 'renamed_table'");
     }
-
 
     @Test
     void testSelectFromTable()
@@ -206,7 +204,7 @@ final class TestFakerQueries
         assertQuery(testQuery, "VALUES (1000)");
         assertUpdate("DROP TABLE faker.default.single_column");
     }
-    
+
     @Test
     void testSelectDefaultTableLimit()
     {
