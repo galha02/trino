@@ -11,12 +11,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.trino.server.rpm;
+package io.trino.plugin.iceberg;
 
-import org.junit.jupiter.api.Test;
+import com.google.inject.BindingAnnotation;
 
-public class TestDummy
-{
-    @Test
-    public void dummyTest() {}
-}
+import java.lang.annotation.Retention;
+import java.lang.annotation.Target;
+
+import static java.lang.annotation.ElementType.FIELD;
+import static java.lang.annotation.ElementType.METHOD;
+import static java.lang.annotation.ElementType.PARAMETER;
+import static java.lang.annotation.RetentionPolicy.RUNTIME;
+
+@Retention(RUNTIME)
+@Target({FIELD, PARAMETER, METHOD})
+@BindingAnnotation
+public @interface ForIcebergScanPlanning {}

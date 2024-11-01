@@ -14,6 +14,7 @@
 package io.trino.plugin.iceberg;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.inject.Inject;
 import io.trino.plugin.hive.orc.OrcWriterConfig;
@@ -30,6 +31,7 @@ import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.ImmutableList.toImmutableList;
+import static com.google.common.collect.ImmutableMap.toImmutableMap;
 import static io.trino.plugin.iceberg.IcebergConfig.FORMAT_VERSION_SUPPORT_MAX;
 import static io.trino.plugin.iceberg.IcebergConfig.FORMAT_VERSION_SUPPORT_MIN;
 import static io.trino.spi.StandardErrorCode.INVALID_TABLE_PROPERTY;
@@ -158,7 +160,7 @@ public class IcebergTableProperties
                         "Extra table properties",
                         new MapType(VARCHAR, VARCHAR, typeManager.getTypeOperators()),
                         Map.class,
-                        null,
+                        ImmutableMap.of(),
                         true, // currently not shown in SHOW CREATE TABLE
                         value -> {
                             Map<String, String> extraProperties = (Map<String, String>) value;
@@ -169,7 +171,8 @@ public class IcebergTableProperties
                                 throw new TrinoException(INVALID_TABLE_PROPERTY, format("Extra table property key cannot be null '%s'", extraProperties));
                             }
 
-                            return extraProperties;
+                            return extraProperties.entrySet().stream()
+                                    .collect(toImmutableMap(entry -> entry.getKey().toLowerCase(ENGLISH), Map.Entry::getValue));
                         },
                         value -> value))
                 .build();
