@@ -18,6 +18,8 @@ import io.trino.testing.QueryRunner;
 import org.intellij.lang.annotations.Language;
 import org.junit.jupiter.api.Test;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 final class TestFakerQueries
         extends AbstractTestQueryFramework
 {
@@ -34,6 +36,24 @@ final class TestFakerQueries
         assertQuery("SHOW SCHEMAS FROM faker", "VALUES 'default', 'information_schema'");
         assertUpdate("CREATE TABLE faker.default.test (id INTEGER, name VARCHAR)");
         assertTableColumnNames("faker.default.test", "id", "name");
+    }
+
+    @Test
+    void testRenameTable()
+    {
+        assertUpdate("CREATE TABLE faker.default.original_table (id INTEGER, name VARCHAR)");
+        assertQuery("SHOW TABLES FROM faker.default LIKE 'original_table'", "VALUES 'original_table'");
+        assertUpdate("ALTER TABLE faker.default.original_table RENAME TO renamed_table");
+        assertQuery("SHOW TABLES FROM faker.default LIKE 'renamed_table'", "VALUES 'renamed_table'");
+    }
+
+    @Test
+    void tableComment()
+    {
+        assertUpdate("CREATE TABLE faker.default.table_comment (id INTEGER, name VARCHAR)");
+        assertUpdate("COMMENT ON TABLE faker.default.table_comment IS 'test table comment'");
+        assertQuery("SELECT comment FROM system.metadata.table_comments WHERE catalog_name = 'faker' AND schema_name = 'default' AND table_name = 'table_comment'" , "VALUES('test table comment')");
+        assertUpdate("DROP TABLE faker.default.table_comment");
     }
 
     @Test
