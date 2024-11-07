@@ -109,7 +109,7 @@ public final class MigrationUtils
             FileEntry file = files.next();
             String fileLocation = file.location().toString();
             String relativePath = fileLocation.substring(location.length());
-            if (relativePath.contains("/_") || relativePath.contains("/.")) {
+            if (relativePath.contains("/_") || fileLocation.contains("/.")) {
                 continue;
             }
             if (recursive == RecursiveDirectory.FALSE && isRecursive(location, fileLocation)) {
