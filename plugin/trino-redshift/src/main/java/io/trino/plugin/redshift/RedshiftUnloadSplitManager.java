@@ -13,6 +13,7 @@
  */
 package io.trino.plugin.redshift;
 
+import com.amazon.redshift.jdbc.RedshiftPreparedStatement;
 import com.google.common.collect.ImmutableMap;
 import com.google.inject.Inject;
 import io.trino.plugin.jdbc.ForRecordCursor;
@@ -116,14 +117,18 @@ public class RedshiftUnloadSplitManager
             throws SQLException
     {
         PreparedQuery preparedQuery = jdbcClient.prepareQuery(session, table, Optional.empty(), columns, ImmutableMap.of());
-        String modifiedQuery = queryModifier.apply(session, preparedQuery.query());
+        PreparedStatement openTelemetryPreparedStatement = queryBuilder.prepareStatement(jdbcClient, session, connection, preparedQuery, Optional.of(columns.size()));
+        RedshiftPreparedStatement redshiftPreparedStatement = openTelemetryPreparedStatement.unwrap(RedshiftPreparedStatement.class);
+        String selectQuerySql = redshiftPreparedStatement.toString();
 
-        String sql = "UNLOAD ('%s') TO '%s' %s FORMAT PARQUET %s".formatted(
+        String modifiedQuery = queryModifier.apply(session, selectQuerySql); // TODO is this required?
+
+        String unloadSql = "UNLOAD ('%s') TO '%s' %s FORMAT PARQUET %s".formatted(
                 formatStringLiteral(modifiedQuery),
                 unloadLocation + session.getQueryId() + "-" + UUID.randomUUID() + "/",
                 unloadAuthorization,
                 unloadOptions);
-        return queryBuilder.prepareStatement(jdbcClient, session, connection, new PreparedQuery(sql, preparedQuery.parameters()), Optional.of(columns.size()));
+        return queryBuilder.prepareStatement(jdbcClient, session, connection, new PreparedQuery(unloadSql, List.of()), Optional.of(columns.size()));
     }
 
     private static String formatStringLiteral(String x)
