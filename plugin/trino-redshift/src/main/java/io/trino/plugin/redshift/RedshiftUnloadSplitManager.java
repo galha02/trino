@@ -34,6 +34,9 @@ import io.trino.spi.connector.ConnectorTransactionHandle;
 import io.trino.spi.connector.Constraint;
 import io.trino.spi.connector.DynamicFilter;
 import io.trino.spi.connector.FixedSplitSource;
+import io.trino.spi.type.DecimalType;
+import io.trino.spi.type.TimeType;
+import io.trino.spi.type.VarbinaryType;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -92,8 +95,9 @@ public class RedshiftUnloadSplitManager
         if (table instanceof JdbcProcedureHandle) {
             return jdbcSplitManager.getSplits(transaction, session, table, dynamicFilter, constraint);
         }
+        ConnectorSplitSource fallbackSplitSource = new FixedSplitSource(new JdbcSplit(Optional.empty()));
         if (!useUnload(session)) {
-            return new FixedSplitSource(new JdbcSplit(Optional.empty()));
+            return fallbackSplitSource;
         }
         JdbcTableHandle jdbcTableHandle = dynamicFilteringEnabled(session) ? ((JdbcTableHandle) table).intersectedWithConstraint(dynamicFilter.getCurrentPredicate()) : (JdbcTableHandle) table;
         List<JdbcColumnHandle> columns = jdbcTableHandle.getColumns()
@@ -101,6 +105,20 @@ public class RedshiftUnloadSplitManager
                         session,
                         jdbcTableHandle.getRequiredNamedRelation().getSchemaTableName(),
                         jdbcTableHandle.getRequiredNamedRelation().getRemoteTableName()));
+
+        // Fallback to jdbc for no table columns in projection
+        if (((JdbcTableHandle) table).getColumns().isPresent() && ((JdbcTableHandle) table).getColumns().get().isEmpty()) {
+            return fallbackSplitSource;
+        }
+        if (containsUnsupportedType(columns)) {
+            return fallbackSplitSource;
+        }
+        if (((JdbcTableHandle) table).getLimit().isPresent()) {
+            return fallbackSplitSource;
+        }
+        if (containsFilterConditionOnDecimalTypeColumn(table)) {
+            return fallbackSplitSource;
+        }
         Connection connection;
         PreparedStatement statement;
         try {
@@ -134,5 +152,22 @@ public class RedshiftUnloadSplitManager
     private static String formatStringLiteral(String x)
     {
         return x.replace("'", "''");
+    }
+
+    private static boolean containsUnsupportedType(List<JdbcColumnHandle> columns)
+    {
+        return columns.stream().anyMatch(column -> column.getColumnType() instanceof TimeType || column.getColumnType() instanceof VarbinaryType);
+    }
+
+    private static boolean containsFilterConditionOnDecimalTypeColumn(ConnectorTableHandle table)
+    {
+        if (((JdbcTableHandle) table).getConstraint().getDomains()
+                .map(columnHandleDomainMap -> columnHandleDomainMap.keySet().stream().anyMatch(column -> ((JdbcColumnHandle) column).getColumnType() instanceof DecimalType))
+                .orElse(false)) {
+            return true;
+        }
+        return ((JdbcTableHandle) table).getConstraintExpressions().stream()
+                .flatMap(expression -> expression.parameters().stream())
+                .anyMatch(parameter -> parameter.getType() instanceof DecimalType);
     }
 }

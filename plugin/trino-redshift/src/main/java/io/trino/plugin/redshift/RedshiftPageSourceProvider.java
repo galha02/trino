@@ -83,6 +83,7 @@ public class RedshiftPageSourceProvider
         if (split instanceof JdbcSplit) {
             return new RecordPageSource(recordSetProvider.getRecordSet(transaction, session, split, table, columns));
         }
+
         String path = ((RedshiftUnloadSplit) split).path();
         Location location = Location.of(path);
         TrinoFileSystem fileSystem = fileSystemFactory.create(session);
@@ -106,7 +107,7 @@ public class RedshiftPageSourceProvider
         MessageType fileSchema = parquetMetadata.getFileMetaData().getSchema();
         MessageColumnIO messageColumn = getColumnIO(fileSchema, fileSchema);
         Map<List<String>, ColumnDescriptor> descriptorsByPath = getDescriptors(fileSchema, fileSchema);
-        DateTimeZone timeZone = DateTimeZone.getDefault();
+        DateTimeZone timeZone = DateTimeZone.UTC;
         List<Column> fields = fields(columns, messageColumn);
         long nextStart = 0;
         ImmutableList.Builder<RowGroupInfo> rowGroupInfoBuilder = ImmutableList.builder();

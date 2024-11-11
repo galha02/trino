@@ -29,7 +29,6 @@ import java.util.OptionalLong;
 import static io.trino.plugin.base.util.Closables.closeAllSuppress;
 import static io.trino.plugin.redshift.RedshiftErrorCode.REDSHIFT_PARQUET_BAD_DATA;
 import static io.trino.plugin.redshift.RedshiftErrorCode.REDSHIFT_PARQUET_CURSOR_ERROR;
-import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 
 public class RedshiftPageSource
@@ -128,6 +127,6 @@ public class RedshiftPageSource
         if (exception instanceof ParquetCorruptionException) {
             return new TrinoException(REDSHIFT_PARQUET_BAD_DATA, exception);
         }
-        return new TrinoException(REDSHIFT_PARQUET_CURSOR_ERROR, format("Failed to read Parquet file: %s", dataSourceId), exception);
+        return new TrinoException(REDSHIFT_PARQUET_CURSOR_ERROR, exception.getMessage(), exception);
     }
 }
