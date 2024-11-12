@@ -11,28 +11,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.trino.plugin.iceberg.catalog.glue;
+
+package io.trino.plugin.iceberg.catalog.hms;
 
 import io.airlift.configuration.Config;
 import io.airlift.configuration.ConfigDescription;
 import jakarta.validation.constraints.Min;
 
-public class IcebergGlueCatalogConfig
+public class IcebergHiveCatalogConfig
 {
-    private boolean cacheTableMetadata = true;
     private int metadataParallelism = 8;
-
-    public boolean isCacheTableMetadata()
-    {
-        return cacheTableMetadata;
-    }
-
-    @Config("iceberg.glue.cache-table-metadata")
-    public IcebergGlueCatalogConfig setCacheTableMetadata(boolean cacheTableMetadata)
-    {
-        this.cacheTableMetadata = cacheTableMetadata;
-        return this;
-    }
 
     @Min(1)
     public int getMetadataParallelism()
@@ -41,8 +29,8 @@ public class IcebergGlueCatalogConfig
     }
 
     @ConfigDescription("Limits metadata enumeration calls parallelism")
-    @Config("iceberg.glue.metadata.parallelism")
-    public IcebergGlueCatalogConfig setMetadataParallelism(int metadataParallelism)
+    @Config("iceberg.hive.metadata.parallelism")
+    public IcebergHiveCatalogConfig setMetadataParallelism(int metadataParallelism)
     {
         this.metadataParallelism = metadataParallelism;
         return this;

@@ -11,7 +11,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.trino.plugin.iceberg.catalog.glue;
+
+package io.trino.plugin.iceberg.catalog.hms;
 
 import com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
@@ -22,26 +23,23 @@ import static io.airlift.configuration.testing.ConfigAssertions.assertFullMappin
 import static io.airlift.configuration.testing.ConfigAssertions.assertRecordedDefaults;
 import static io.airlift.configuration.testing.ConfigAssertions.recordDefaults;
 
-public class TestIcebergGlueCatalogConfig
+final class TestIcebergHiveCatalogConfig
 {
     @Test
-    public void testDefaults()
+    void testDefaults()
     {
-        assertRecordedDefaults(recordDefaults(IcebergGlueCatalogConfig.class)
-                .setCacheTableMetadata(true)
+        assertRecordedDefaults(recordDefaults(IcebergHiveCatalogConfig.class)
                 .setMetadataParallelism(8));
     }
 
     @Test
-    public void testExplicitPropertyMapping()
+    void testExplicitPropertyMapping()
     {
         Map<String, String> properties = ImmutableMap.<String, String>builder()
-                .put("iceberg.glue.cache-table-metadata", "false")
-                .put("iceberg.glue.metadata.parallelism", "10")
+                .put("iceberg.hive.metadata.parallelism", "10")
                 .buildOrThrow();
 
-        IcebergGlueCatalogConfig expected = new IcebergGlueCatalogConfig()
-                .setCacheTableMetadata(false)
+        IcebergHiveCatalogConfig expected = new IcebergHiveCatalogConfig()
                 .setMetadataParallelism(10);
 
         assertFullMapping(properties, expected);

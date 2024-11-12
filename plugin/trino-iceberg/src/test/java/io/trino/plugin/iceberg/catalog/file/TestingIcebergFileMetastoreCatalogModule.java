@@ -24,6 +24,7 @@ import io.trino.plugin.hive.metastore.RawHiveMetastoreFactory;
 import io.trino.plugin.hive.metastore.cache.CachingHiveMetastoreConfig;
 import io.trino.plugin.iceberg.catalog.IcebergTableOperationsProvider;
 import io.trino.plugin.iceberg.catalog.TrinoCatalogFactory;
+import io.trino.plugin.iceberg.catalog.hms.IcebergHiveCatalogConfig;
 import io.trino.plugin.iceberg.catalog.hms.TrinoHiveCatalogFactory;
 
 import java.util.concurrent.TimeUnit;
@@ -49,6 +50,7 @@ public class TestingIcebergFileMetastoreCatalogModule
         binder.bind(IcebergTableOperationsProvider.class).to(FileMetastoreTableOperationsProvider.class).in(Scopes.SINGLETON);
         binder.bind(TrinoCatalogFactory.class).to(TrinoHiveCatalogFactory.class).in(Scopes.SINGLETON);
 
+        configBinder(binder).bindConfig(IcebergHiveCatalogConfig.class);
         configBinder(binder).bindConfigDefaults(CachingHiveMetastoreConfig.class, config -> {
             // ensure caching metastore wrapper isn't created, as it's not leveraged by Iceberg
             config.setStatsCacheTtl(new Duration(0, TimeUnit.SECONDS));

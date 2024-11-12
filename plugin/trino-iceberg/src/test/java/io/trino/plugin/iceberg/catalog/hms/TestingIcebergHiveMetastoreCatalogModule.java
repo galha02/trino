@@ -52,6 +52,7 @@ public class TestingIcebergHiveMetastoreCatalogModule
         binder.bind(IcebergTableOperationsProvider.class).to(HiveMetastoreTableOperationsProvider.class).in(Scopes.SINGLETON);
         binder.bind(TrinoCatalogFactory.class).to(TrinoHiveCatalogFactory.class).in(Scopes.SINGLETON);
 
+        configBinder(binder).bindConfig(IcebergHiveCatalogConfig.class);
         configBinder(binder).bindConfigDefaults(CachingHiveMetastoreConfig.class, config -> {
             // ensure caching metastore wrapper isn't created, as it's not leveraged by Iceberg
             config.setStatsCacheTtl(new Duration(0, TimeUnit.SECONDS));
