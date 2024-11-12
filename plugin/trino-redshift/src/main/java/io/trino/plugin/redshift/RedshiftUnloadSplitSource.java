@@ -13,6 +13,7 @@
  */
 package io.trino.plugin.redshift;
 
+import com.amazon.redshift.util.RedshiftException;
 import com.google.common.collect.ImmutableList;
 import io.airlift.log.Logger;
 import io.trino.spi.connector.ConnectorSplit;
@@ -27,7 +28,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 
-import static com.google.common.collect.ImmutableList.toImmutableList;
 import static java.util.Objects.requireNonNull;
 
 public class RedshiftUnloadSplitSource
@@ -38,17 +38,20 @@ public class RedshiftUnloadSplitSource
 
     private final Connection connection;
     private final CompletableFuture<Boolean> resultSetFuture;
+    private final ConnectorSplitSource fallbackSplitSource;
 
     private boolean finished;
 
-    public RedshiftUnloadSplitSource(ExecutorService executor, Connection connection, PreparedStatement statement)
+    public RedshiftUnloadSplitSource(ExecutorService executor, Connection connection, PreparedStatement statement, ConnectorSplitSource fallbackSplitSource)
     {
         requireNonNull(executor, "executor is null");
         this.connection = requireNonNull(connection, "connection is null");
+        this.fallbackSplitSource = requireNonNull(fallbackSplitSource, "fallbackSplitSource is null");
         requireNonNull(statement, "statement is null");
         resultSetFuture = CompletableFuture.supplyAsync(() -> {
             log.debug("Executing: %s", statement);
             try {
+                connection.setReadOnly(false);
                 return statement.execute();
             }
             catch (SQLException e) {
@@ -60,17 +63,26 @@ public class RedshiftUnloadSplitSource
     @Override
     public CompletableFuture<ConnectorSplitBatch> getNextBatch(int maxSize)
     {
-        try {
-            resultSetFuture.get();
-        }
-        catch (InterruptedException | ExecutionException e) {
-            throw new RuntimeException(e);
-        }
-        finished = true;
-        List<ConnectorSplit> splits = getPaths().stream()
-                .map(RedshiftUnloadSplit::new)
-                .collect(toImmutableList());
-        return CompletableFuture.completedFuture(new ConnectorSplitBatch(splits, isFinished()));
+        return resultSetFuture
+                .thenApply(_ -> {
+                    ConnectorSplitBatch connectorSplitBatch = new ConnectorSplitBatch(getPaths().stream()
+                            .map(path -> (ConnectorSplit) new RedshiftUnloadSplit(path))
+                            .toList(), true);
+                    finished = true;
+                    return connectorSplitBatch;
+                })
+                .exceptionally(e -> {
+                    if (e.getCause() != null && e.getCause().getCause() != null && e.getCause().getCause() instanceof RedshiftException) {
+                        try {
+                            log.debug("Unload query execution failed. Falling back to using JDBC");
+                            return fallbackSplitSource.getNextBatch(maxSize).get();
+                        }
+                        catch (InterruptedException | ExecutionException ex) {
+                            throw new RuntimeException(ex);
+                        }
+                    }
+                    throw new RuntimeException(e);
+                });
     }
 
     private List<String> getPaths()
@@ -90,11 +102,14 @@ public class RedshiftUnloadSplitSource
     }
 
     @Override
-    public void close() {}
+    public void close()
+    {
+        resultSetFuture.cancel(true);
+    }
 
     @Override
     public boolean isFinished()
     {
-        return finished;
+        return finished || fallbackSplitSource.isFinished();
     }
 }

@@ -56,36 +56,8 @@ public class TestRedshiftUnloadConnectorTest
 
     @Test
     @Override
-    public void testExplainAnalyze()
-    {
-        abort("com.amazon.redshift.util.RedshiftException: ERROR: transaction is read-only");
-    }
-
-    @Test
-    @Override
-    public void testColumnName()
-    {
-        abort("https://github.com/aws/amazon-redshift-jdbc-driver/issues/124");
-    }
-
-    @Test
-    @Override
     public void testCancellation()
     {
         abort("java.util.concurrent.TimeoutException: testCancellation() timed out after 60 seconds");
-    }
-
-    @Test
-    @Override
-    public void testDataMappingSmokeTest()
-    {
-        abort("https://github.com/aws/amazon-redshift-jdbc-driver/issues/124");
-    }
-
-    @Test
-    @Override
-    public void testComplexPushdownThatMayElicitTemporaryTable()
-    {
-        abort("com.amazon.redshift.util.RedshiftException: ERROR: transaction is read-only");
     }
 }

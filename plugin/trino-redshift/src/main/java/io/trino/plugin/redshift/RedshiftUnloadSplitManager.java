@@ -14,8 +14,10 @@
 package io.trino.plugin.redshift;
 
 import com.amazon.redshift.jdbc.RedshiftPreparedStatement;
+import com.amazon.redshift.util.RedshiftException;
 import com.google.common.collect.ImmutableMap;
 import com.google.inject.Inject;
+import io.airlift.log.Logger;
 import io.trino.plugin.jdbc.ForRecordCursor;
 import io.trino.plugin.jdbc.JdbcClient;
 import io.trino.plugin.jdbc.JdbcColumnHandle;
@@ -53,6 +55,8 @@ import static java.util.Objects.requireNonNull;
 public class RedshiftUnloadSplitManager
         implements ConnectorSplitManager
 {
+    private static final Logger log = Logger.get(RedshiftUnloadSplitManager.class);
+
     private final JdbcClient jdbcClient;
     private final QueryBuilder queryBuilder;
     private final RemoteQueryModifier queryModifier;
@@ -106,43 +110,47 @@ public class RedshiftUnloadSplitManager
                         jdbcTableHandle.getRequiredNamedRelation().getSchemaTableName(),
                         jdbcTableHandle.getRequiredNamedRelation().getRemoteTableName()));
 
-        // Fallback to jdbc for no table columns in projection
-        if (((JdbcTableHandle) table).getColumns().isPresent() && ((JdbcTableHandle) table).getColumns().get().isEmpty()) {
+        if (!isUnloadSupported(((JdbcTableHandle) table), columns)) {
+            log.debug("Unload query contains unsupported characters. Falling back to using JDBC");
             return fallbackSplitSource;
         }
-        if (containsUnsupportedType(columns)) {
-            return fallbackSplitSource;
-        }
-        if (((JdbcTableHandle) table).getLimit().isPresent()) {
-            return fallbackSplitSource;
-        }
-        if (containsFilterConditionOnDecimalTypeColumn(table)) {
-            return fallbackSplitSource;
-        }
+
         Connection connection;
         PreparedStatement statement;
         try {
             connection = jdbcClient.getConnection(session);
-            statement = buildUnloadSql(session, connection, jdbcTableHandle, columns);
+            String redshiftSelectSql = getRedshiftSelectSql(session, connection, jdbcTableHandle, columns);
+            if (redshiftSelectSql.contains("\\b")) {
+                log.debug("Unload query contains unsupported characters. Falling back to using JDBC");
+                return fallbackSplitSource;
+            }
+            statement = buildUnloadSql(session, connection, columns, redshiftSelectSql);
         }
         catch (SQLException e) {
+            if (e instanceof RedshiftException) {
+                log.debug("Could not build unload query. Falling back to using JDBC");
+                return fallbackSplitSource;
+            }
             throw new RuntimeException(e);
         }
-        return new RedshiftUnloadSplitSource(executor, connection, statement);
+        return new RedshiftUnloadSplitSource(executor, connection, statement, fallbackSplitSource);
     }
 
-    private PreparedStatement buildUnloadSql(ConnectorSession session, Connection connection, JdbcTableHandle table, List<JdbcColumnHandle> columns)
+    private String getRedshiftSelectSql(ConnectorSession session, Connection connection, JdbcTableHandle table, List<JdbcColumnHandle> columns)
             throws SQLException
     {
         PreparedQuery preparedQuery = jdbcClient.prepareQuery(session, table, Optional.empty(), columns, ImmutableMap.of());
         PreparedStatement openTelemetryPreparedStatement = queryBuilder.prepareStatement(jdbcClient, session, connection, preparedQuery, Optional.of(columns.size()));
         RedshiftPreparedStatement redshiftPreparedStatement = openTelemetryPreparedStatement.unwrap(RedshiftPreparedStatement.class);
         String selectQuerySql = redshiftPreparedStatement.toString();
+        return queryModifier.apply(session, selectQuerySql); // TODO is this required?
+    }
 
-        String modifiedQuery = queryModifier.apply(session, selectQuerySql); // TODO is this required?
-
+    private PreparedStatement buildUnloadSql(ConnectorSession session, Connection connection, List<JdbcColumnHandle> columns, String redshiftSelectSql)
+            throws SQLException
+    {
         String unloadSql = "UNLOAD ('%s') TO '%s' %s FORMAT PARQUET %s".formatted(
-                formatStringLiteral(modifiedQuery),
+                formatStringLiteral(redshiftSelectSql), // TODO does it require any other escaping
                 unloadLocation + session.getQueryId() + "-" + UUID.randomUUID() + "/",
                 unloadAuthorization,
                 unloadOptions);
@@ -152,6 +160,23 @@ public class RedshiftUnloadSplitManager
     private static String formatStringLiteral(String x)
     {
         return x.replace("'", "''");
+    }
+
+    private static boolean isUnloadSupported(JdbcTableHandle table, List<JdbcColumnHandle> columns)
+    {
+        if (table.getColumns().isPresent() && table.getColumns().get().isEmpty()) {
+            return false;
+        }
+        if (containsUnsupportedType(columns)) {
+            return false;
+        }
+        if (table.getLimit().isPresent()) {
+            return false;
+        }
+        if (containsFilterConditionOnDecimalTypeColumn(table)) {
+            return false;
+        }
+        return true;
     }
 
     private static boolean containsUnsupportedType(List<JdbcColumnHandle> columns)
