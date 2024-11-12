@@ -262,3 +262,14 @@ may not be specified using both methods.
     network overhead and uses smaller HTTP headers and requires Trino 431 or
     greater.
 :::
+
+
+(jdbc-spooling-protocol)=
+## Spooling protocol
+
+
+    --encoding=<encoding>  Experimental spooled protocol encoding [available: json, json+zstd, json+lz4]
+
+do we need to add version info here?
+
+link to server config docs, server config must be in place
