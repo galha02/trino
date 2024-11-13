@@ -886,25 +886,21 @@ public class RangerSystemAccessControl
 
     private RangerAccessResult getDataMaskResult(RangerTrinoAccessRequest request)
     {
-        return rangerPlugin.evalDataMaskPolicies(request, null);
+        return rangerPlugin.evalDataMaskPolicies(request, rangerPlugin.getResultProcessor());
     }
 
     private RangerAccessResult getRowFilterResult(RangerTrinoAccessRequest request)
     {
-        return rangerPlugin.evalRowFilterPolicies(request, null);
+        return rangerPlugin.evalRowFilterPolicies(request, rangerPlugin.getResultProcessor());
     }
 
     private boolean isDataMaskEnabled(RangerAccessResult result)
     {
-        checkArgument(result != null);
-
         return result.isMaskEnabled();
     }
 
     private boolean isRowFilterEnabled(RangerAccessResult result)
     {
-        checkArgument(result != null);
-
         return result.isRowFilterEnabled();
     }
 
