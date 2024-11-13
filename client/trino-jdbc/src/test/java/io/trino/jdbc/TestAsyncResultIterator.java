@@ -119,7 +119,7 @@ class TestAsyncResultIterator
         }
 
         @Override
-        public Optional<String> getQuery()
+        public String getQuery()
         {
             throw new UnsupportedOperationException();
         }
