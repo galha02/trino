@@ -32,13 +32,13 @@ import io.trino.spi.procedure.Procedure;
 import java.util.Optional;
 import java.util.Set;
 
-public class RedshiftConnector
+public class RedshiftUnloadConnector
         extends JdbcConnector
 {
     private final RedshiftPageSourceProvider pageSourceProvider;
 
     @Inject
-    public RedshiftConnector(
+    public RedshiftUnloadConnector(
             LifeCycleManager lifeCycleManager,
             ConnectorSplitManager jdbcSplitManager,
             ConnectorRecordSetProvider jdbcRecordSetProvider,
