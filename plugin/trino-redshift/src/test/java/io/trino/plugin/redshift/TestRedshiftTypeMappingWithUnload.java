@@ -35,7 +35,6 @@ public class TestRedshiftTypeMappingWithUnload
     {
         Map<String, String> properties = ImmutableMap.<String, String>builder()
                 .put("redshift.unload-location", "s3://redshift-mayank-useast1/unload/")
-                .put("redshift.unload-options", "REGION AS '%s' MAXFILESIZE AS 5 MB".formatted(AWS_REGION))
                 .put("redshift.iam-role", IAM_ROLE)
                 .put("s3.region", AWS_REGION)
                 .put("s3.endpoint", "https://s3.%s.amazonaws.com".formatted(AWS_REGION))

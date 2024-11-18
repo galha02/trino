@@ -29,7 +29,6 @@ public class RedshiftConfig
     private Integer fetchSize;
 
     private String unloadLocation;
-    private String unloadOptions;
     private String iamRole;
 
     public Optional<@Min(0) Integer> getFetchSize()
@@ -55,19 +54,6 @@ public class RedshiftConfig
     public RedshiftConfig setUnloadLocation(String unloadLocation)
     {
         this.unloadLocation = unloadLocation;
-        return this;
-    }
-
-    public Optional<String> getUnloadOptions()
-    {
-        return Optional.ofNullable(unloadOptions);
-    }
-
-    @Config("redshift.unload-options")
-    @ConfigDescription("Extra options to append to the Redshift UNLOAD command")
-    public RedshiftConfig setUnloadOptions(String unloadOptions)
-    {
-        this.unloadOptions = unloadOptions;
         return this;
     }
 

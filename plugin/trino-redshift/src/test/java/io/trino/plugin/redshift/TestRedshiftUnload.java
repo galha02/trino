@@ -44,7 +44,6 @@ public class TestRedshiftUnload
                 .setInitialTables(List.of(CUSTOMER))
                 .setConnectorProperties(Map.of(
                         "redshift.unload-location", "s3://starburstdata-engineering-redshift-test/unload",
-                        "redshift.unload-options", "REGION AS '%s' MAXFILESIZE AS 5 MB".formatted(REGION),
                         "redshift.iam-role", IAM_ROLE,
                         "s3.region", REGION,
                         "s3.endpoint", "https://s3.%s.amazonaws.com".formatted(REGION),

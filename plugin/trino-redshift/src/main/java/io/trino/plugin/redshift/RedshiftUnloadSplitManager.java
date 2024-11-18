@@ -62,7 +62,6 @@ public class RedshiftUnloadSplitManager
     private final RemoteQueryModifier queryModifier;
     private final JdbcSplitManager jdbcSplitManager;
     private final String unloadLocation;
-    private final String unloadOptions;
     private final String unloadAuthorization;
     private final ExecutorService executor;
 
@@ -83,7 +82,6 @@ public class RedshiftUnloadSplitManager
         this.unloadLocation = redshiftConfig.getUnloadLocation()
                 .map(location -> location.replaceAll("/$", "") + "/")
                 .orElse(null);
-        this.unloadOptions = redshiftConfig.getUnloadOptions().orElse("");
         if (redshiftConfig.getIamRole().isPresent()) {
             this.unloadAuthorization = "IAM_ROLE '%s'".formatted(redshiftConfig.getIamRole().get());
         }
@@ -149,11 +147,10 @@ public class RedshiftUnloadSplitManager
     private PreparedStatement buildUnloadSql(ConnectorSession session, Connection connection, List<JdbcColumnHandle> columns, String redshiftSelectSql)
             throws SQLException
     {
-        String unloadSql = "UNLOAD ('%s') TO '%s' %s FORMAT PARQUET %s".formatted(
+        String unloadSql = "UNLOAD ('%s') TO '%s' %s FORMAT PARQUET".formatted(
                 formatStringLiteral(redshiftSelectSql), // TODO does it require any other escaping
                 unloadLocation + session.getQueryId() + "-" + UUID.randomUUID() + "/",
-                unloadAuthorization,
-                unloadOptions);
+                unloadAuthorization);
         return queryBuilder.prepareStatement(jdbcClient, session, connection, new PreparedQuery(unloadSql, List.of()), Optional.of(columns.size()));
     }
 
