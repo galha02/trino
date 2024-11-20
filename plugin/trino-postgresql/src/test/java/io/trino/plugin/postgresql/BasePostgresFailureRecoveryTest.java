@@ -60,10 +60,26 @@ public abstract class BasePostgresFailureRecoveryTest
 
     @Test
     @Override
+    protected void testDeleteWithSubquery()
+    {
+        // TODO: support merge with fte https://github.com/trinodb/trino/issues/23345
+        assertThatThrownBy(super::testDeleteWithSubquery).hasMessageContaining("This connector does not support MERGE with fault-tolerant execution");
+    }
+
+    @Test
+    @Override
     protected void testUpdateWithSubquery()
     {
         assertThatThrownBy(super::testUpdateWithSubquery).hasMessageContaining("Unexpected Join over for-update table scan");
         abort("skipped");
+    }
+
+    @Test
+    @Override
+    protected void testMerge()
+    {
+        // TODO: support merge with fte https://github.com/trinodb/trino/issues/23345
+        assertThatThrownBy(super::testMerge).hasMessageContaining("This connector does not support MERGE with fault-tolerant execution");
     }
 
     @Test
