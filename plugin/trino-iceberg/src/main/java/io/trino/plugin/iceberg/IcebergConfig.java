@@ -91,6 +91,7 @@ public class IcebergConfig
     private List<String> allowedExtraProperties = ImmutableList.of();
     private boolean incrementalRefreshEnabled = true;
     private boolean metadataCacheEnabled = true;
+    private boolean bucketExecutionEnabled = true;
 
     public CatalogType getCatalogType()
     {
@@ -517,6 +518,19 @@ public class IcebergConfig
     public IcebergConfig setMetadataCacheEnabled(boolean metadataCacheEnabled)
     {
         this.metadataCacheEnabled = metadataCacheEnabled;
+        return this;
+    }
+
+    public boolean isBucketExecutionEnabled()
+    {
+        return bucketExecutionEnabled;
+    }
+
+    @Config("iceberg.bucket-execution")
+    @ConfigDescription("Enable bucket-aware execution: use physical bucketing information to optimize queries")
+    public IcebergConfig setBucketExecutionEnabled(boolean bucketExecutionEnabled)
+    {
+        this.bucketExecutionEnabled = bucketExecutionEnabled;
         return this;
     }
 }

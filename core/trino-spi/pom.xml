@@ -353,6 +353,10 @@
                                     <code>java.method.removed</code>
                                     <old>method io.trino.spi.PageBuilder io.trino.spi.PageBuilder::newPageBuilderLike()</old>
                                 </item>
+                                <item>
+                                    <code>java.method.removed</code>
+                                    <old>method io.trino.spi.connector.ConnectorTableHandle io.trino.spi.connector.ConnectorMetadata::makeCompatiblePartitioning(io.trino.spi.connector.ConnectorSession, io.trino.spi.connector.ConnectorTableHandle, io.trino.spi.connector.ConnectorPartitioningHandle)</old>
+                                </item>
                             </differences>
                         </revapi.differences>
                     </analysisConfiguration>
