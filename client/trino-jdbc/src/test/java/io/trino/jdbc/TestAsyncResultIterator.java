@@ -155,6 +155,12 @@ class TestAsyncResultIterator
         }
 
         @Override
+        public boolean validateCredentials(int timeout)
+        {
+            return true;
+        }
+
+        @Override
         public StatementStats getStats()
         {
             throw new UnsupportedOperationException();

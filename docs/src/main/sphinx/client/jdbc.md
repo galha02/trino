@@ -261,4 +261,7 @@ may not be specified using both methods.
     `PREPARE <statement>` followed by `EXECUTE <statement>`. This reduces
     network overhead and uses smaller HTTP headers and requires Trino 431 or
     greater.
+* - `validateConnection`
+  - Defaults to `false`. If set to `true`, connectivity and credentials will be 
+    validated when making a connection.
 :::
