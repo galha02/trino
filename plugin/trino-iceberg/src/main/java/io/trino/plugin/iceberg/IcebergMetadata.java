@@ -2740,7 +2740,8 @@ public class IcebergMetadata
 
         RowDelta rowDelta = transaction.newRowDelta();
         table.getSnapshotId().map(icebergTable::snapshot).ifPresent(s -> rowDelta.validateFromSnapshot(s.snapshotId()));
-        TupleDomain<IcebergColumnHandle> dataColumnPredicate = table.getEnforcedPredicate().filter((column, domain) -> !isMetadataColumnId(column.getId()));
+        TupleDomain<IcebergColumnHandle> dataColumnPredicate = table.getEnforcedPredicate().intersect(table.getUnenforcedPredicate())
+                .filter((column, domain) -> !isMetadataColumnId(column.getId()));
         if (!dataColumnPredicate.isAll()) {
             rowDelta.conflictDetectionFilter(toIcebergExpression(dataColumnPredicate));
         }
