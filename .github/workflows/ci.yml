@@ -733,8 +733,11 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.REDSHIFT_AWS_SECRET_ACCESS_KEY }}
           REDSHIFT_SUBNET_GROUP_NAME: ${{ vars.REDSHIFT_SUBNET_GROUP_NAME }}
           REDSHIFT_IAM_ROLES: ${{ vars.REDSHIFT_IAM_ROLES }}
+          REDSHIFT_S3_UNLOAD_ACCESS_KEY_ID: ${{ vars.REDSHIFT_S3_UNLOAD_ACCESS_KEY_ID }}
+          REDSHIFT_S3_UNLOAD_SECRET_ACCESS_KEY: ${{ secrets.REDSHIFT_S3_UNLOAD_SECRET_ACCESS_KEY }}
           REDSHIFT_VPC_SECURITY_GROUP_IDS: ${{ vars.REDSHIFT_VPC_SECURITY_GROUP_IDS }}
           REDSHIFT_S3_TPCH_TABLES_ROOT: ${{ vars.REDSHIFT_S3_TPCH_TABLES_ROOT }}
+          REDSHIFT_S3_UNLOAD_ROOT: ${{ vars.REDSHIFT_S3_UNLOAD_ROOT }}
         if: >-
           contains(matrix.modules, 'trino-redshift') &&
           (contains(matrix.profile, 'cloud-tests') || contains(matrix.profile, 'fte-tests')) &&
@@ -747,7 +750,10 @@ jobs:
             -Dtest.redshift.jdbc.password="${REDSHIFT_PASSWORD}" \
             -Dtest.redshift.jdbc.endpoint="${REDSHIFT_ENDPOINT}:${REDSHIFT_PORT}/" \
             -Dtest.redshift.s3.tpch.tables.root="${REDSHIFT_S3_TPCH_TABLES_ROOT}" \
+            -Dtest.redshift.s3.unload.root="${REDSHIFT_S3_UNLOAD_ROOT}" \
             -Dtest.redshift.iam.role="${REDSHIFT_IAM_ROLES}" \
+            -Dtest.redshift.unload.s3.access-key="${REDSHIFT_S3_UNLOAD_ACCESS_KEY_ID}" \
+            -Dtest.redshift.unload.s3.secret-key="${REDSHIFT_S3_UNLOAD_SECRET_ACCESS_KEY}"
             -Dtest.redshift.aws.region="${AWS_REGION}" \
             -Dtest.redshift.aws.access-key="${AWS_ACCESS_KEY_ID}" \
             -Dtest.redshift.aws.secret-key="${AWS_SECRET_ACCESS_KEY}"
