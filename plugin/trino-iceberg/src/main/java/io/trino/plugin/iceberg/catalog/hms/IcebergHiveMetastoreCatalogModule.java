@@ -51,6 +51,7 @@ public class IcebergHiveMetastoreCatalogModule
         binder.bind(Key.get(boolean.class, HideDeltaLakeTables.class)).toInstance(HIDE_DELTA_LAKE_TABLES_IN_ICEBERG);
         install(new CachingHiveMetastoreModule(false));
 
+        configBinder(binder).bindConfig(IcebergHiveCatalogConfig.class);
         configBinder(binder).bindConfigDefaults(CachingHiveMetastoreConfig.class, config -> {
             // ensure caching metastore wrapper isn't created, as it's not leveraged by Iceberg
             config.setStatsCacheTtl(new Duration(0, TimeUnit.SECONDS));

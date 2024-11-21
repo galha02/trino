@@ -140,10 +140,18 @@ public class IcebergModule
         newOptionalBinder(binder, IcebergFileSystemFactory.class).setDefault().to(DefaultIcebergFileSystemFactory.class).in(Scopes.SINGLETON);
         newOptionalBinder(binder, CacheKeyProvider.class).setBinding().to(IcebergCacheKeyProvider.class).in(Scopes.SINGLETON);
 
+        closingBinder(binder).registerExecutor(ExecutorService.class);
         closingBinder(binder).registerExecutor(Key.get(ListeningExecutorService.class, ForIcebergSplitManager.class));
         closingBinder(binder).registerExecutor(Key.get(ExecutorService.class, ForIcebergScanPlanning.class));
 
         binder.bind(IcebergConnector.class).in(Scopes.SINGLETON);
+    }
+
+    @Singleton
+    @Provides
+    public ExecutorService createIcebergExecutor(CatalogName catalogName)
+    {
+        return newCachedThreadPool(daemonThreadsNamed("iceberg-" + catalogName + "-%s"));
     }
 
     @Provides
