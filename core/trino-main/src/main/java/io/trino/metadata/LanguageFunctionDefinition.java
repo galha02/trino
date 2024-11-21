@@ -11,35 +11,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.trino.sql.routine;
+package io.trino.metadata;
 
 import com.google.common.collect.ImmutableMap;
 import io.trino.spi.type.Type;
-import io.trino.sql.analyzer.Analysis;
-import io.trino.sql.tree.ControlStatement;
 
+import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static java.util.Objects.requireNonNull;
 
-public record SqlRoutineAnalysis(
-        String name,
-        Map<String, Type> arguments,
+public record LanguageFunctionDefinition(
+        String language,
         Type returnType,
-        boolean calledOnNull,
-        boolean deterministic,
-        Optional<String> comment,
-        ControlStatement statement,
-        Analysis analysis)
+        List<Type> argumentTypes,
+        String definition,
+        Map<String, Object> properties)
 {
-    public SqlRoutineAnalysis
+    public LanguageFunctionDefinition
     {
-        requireNonNull(name, "name is null");
-        arguments = ImmutableMap.copyOf(requireNonNull(arguments, "arguments is null"));
+        requireNonNull(language, "language is null");
         requireNonNull(returnType, "returnType is null");
-        requireNonNull(comment, "comment is null");
-        requireNonNull(statement, "statement is null");
-        requireNonNull(analysis, "analysis is null");
+        requireNonNull(argumentTypes, "argumentTypes is null");
+        requireNonNull(definition, "definition is null");
+        properties = ImmutableMap.copyOf(requireNonNull(properties, "properties is null"));
     }
 }

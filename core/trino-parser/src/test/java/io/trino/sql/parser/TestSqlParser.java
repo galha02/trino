@@ -1186,6 +1186,28 @@ public class TestSqlParser
     }
 
     @Test
+    public void testString()
+    {
+        NodeLocation location = new NodeLocation(1, 1);
+        assertThat(expression("'abc''xyz'"))
+                .isEqualTo(new StringLiteral(location, "abc'xyz"));
+        assertThat(expression("''''"))
+                .isEqualTo(new StringLiteral(location, "'"));
+        assertThat(expression("''"))
+                .isEqualTo(new StringLiteral(location, ""));
+        assertThat(expression("$$abc'xyz$$"))
+                .isEqualTo(new StringLiteral(location, "abc'xyz"));
+        assertThat(expression("$$abc$xyz$$"))
+                .isEqualTo(new StringLiteral(location, "abc$xyz"));
+        assertThat(expression("$$abc\nxyz$$"))
+                .isEqualTo(new StringLiteral(location, "abc\nxyz"));
+        assertThat(expression("$$\nabc\nxyz\n$$"))
+                .isEqualTo(new StringLiteral(location, "\nabc\nxyz\n"));
+        assertThat(expression("$$$$"))
+                .isEqualTo(new StringLiteral(location, ""));
+    }
+
+    @Test
     public void testInterval()
     {
         NodeLocation location = new NodeLocation(1, 1);
