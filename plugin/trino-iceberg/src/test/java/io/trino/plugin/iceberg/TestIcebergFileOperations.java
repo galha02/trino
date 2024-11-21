@@ -319,6 +319,7 @@ public class TestIcebergFileOperations
                         .add(new FileOperation(SNAPSHOT, "InputFile.length"))
                         .add(new FileOperation(SNAPSHOT, "InputFile.newStream"))
                         .addCopies(new FileOperation(DATA, "InputFile.newInput"), 4)
+                        .addCopies(new FileOperation(DATA, "InputFile.length"), 4)
                         .build());
 
         // Read partition column only
@@ -330,6 +331,7 @@ public class TestIcebergFileOperations
                         .add(new FileOperation(METADATA_JSON, "InputFile.newStream"))
                         .add(new FileOperation(SNAPSHOT, "InputFile.length"))
                         .add(new FileOperation(SNAPSHOT, "InputFile.newStream"))
+                        .addCopies(new FileOperation(DATA, "InputFile.length"), 4)
                         .build());
 
         // Read partition column only, one partition only
@@ -341,6 +343,7 @@ public class TestIcebergFileOperations
                         .add(new FileOperation(METADATA_JSON, "InputFile.newStream"))
                         .add(new FileOperation(SNAPSHOT, "InputFile.length"))
                         .add(new FileOperation(SNAPSHOT, "InputFile.newStream"))
+                        .addCopies(new FileOperation(DATA, "InputFile.length"), 2)
                         .build());
 
         // Read partition and synthetic columns
@@ -355,6 +358,7 @@ public class TestIcebergFileOperations
                         // TODO return synthetic columns without opening the data files
                         .addCopies(new FileOperation(DATA, "InputFile.newInput"), 4)
                         .addCopies(new FileOperation(DATA, "InputFile.lastModified"), 4)
+                        .addCopies(new FileOperation(DATA, "InputFile.length"), 4)
                         .build());
 
         // Read only row count
@@ -366,6 +370,7 @@ public class TestIcebergFileOperations
                         .add(new FileOperation(METADATA_JSON, "InputFile.newStream"))
                         .add(new FileOperation(SNAPSHOT, "InputFile.length"))
                         .add(new FileOperation(SNAPSHOT, "InputFile.newStream"))
+                        .addCopies(new FileOperation(DATA, "InputFile.length"), 4)
                         .build());
 
         assertUpdate("DROP TABLE test_read_part_key");
@@ -402,6 +407,7 @@ public class TestIcebergFileOperations
                         .add(new FileOperation(METADATA_JSON, "InputFile.newStream"))
                         .add(new FileOperation(SNAPSHOT, "InputFile.length"))
                         .add(new FileOperation(SNAPSHOT, "InputFile.newStream"))
+                        .add(new FileOperation(DATA, "InputFile.length"))
                         .build());
 
         // Read only row count
@@ -414,6 +420,7 @@ public class TestIcebergFileOperations
                         .add(new FileOperation(METADATA_JSON, "InputFile.newStream"))
                         .add(new FileOperation(SNAPSHOT, "InputFile.length"))
                         .add(new FileOperation(SNAPSHOT, "InputFile.newStream"))
+                        .add(new FileOperation(DATA, "InputFile.length"))
                         .build());
 
         assertUpdate("DROP TABLE test_read_whole_splittable_file");
@@ -878,6 +885,7 @@ public class TestIcebergFileOperations
 
         ImmutableMultiset<FileOperation> expectedAccesses = ImmutableMultiset.<FileOperationUtils.FileOperation>builder()
                 .addCopies(new FileOperationUtils.FileOperation(DATA, "InputFile.newInput"), 2)
+                .addCopies(new FileOperationUtils.FileOperation(DATA, "InputFile.length"), 2)
                 .addCopies(new FileOperationUtils.FileOperation(DELETE, "InputFile.newInput"), 1)
                 .build();
 
